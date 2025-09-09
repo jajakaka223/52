@@ -18,7 +18,28 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Handle login directly in Vercel
+    // Try to connect to Railway first
+    const railwayUrl = 'https://52express-transport-app-production.up.railway.app/api/auth/login';
+    
+    try {
+      const response = await fetch(railwayUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(req.body)
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        res.json(data);
+        return;
+      }
+    } catch (railwayError) {
+      console.log('Railway not available, using local auth');
+    }
+
+    // Fallback to local authentication
     const { username, password } = req.body;
     
     if (username === 'admin' && password === 'admin') {
