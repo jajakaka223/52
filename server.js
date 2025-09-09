@@ -47,7 +47,12 @@ const io = socketIo(server, {
 
 // Middleware
 app.use(helmet());
-app.use(cors());
+app.use(cors({
+  origin: true, // Разрешаем все домены
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+}));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
@@ -82,10 +87,38 @@ app.use('/api/telegram', require('./routes/telegram'));
 // Socket.io connection handling
 require('./socket/socketHandler')(io);
 
-// Serve React app (временно отключено)
-// app.get('*', (req, res) => {
-//   res.sendFile(path.join(__dirname, 'web/build', 'index.html'));
-// });
+// Health check endpoint
+app.get('/', (req, res) => {
+  res.json({ 
+    message: '52Express Transport API Server', 
+    status: 'running',
+    version: '1.0.0',
+    endpoints: {
+      auth: '/api/auth',
+      users: '/api/users',
+      orders: '/api/orders',
+      vehicles: '/api/vehicles',
+      tracking: '/api/tracking',
+      reports: '/api/reports',
+      accounting: '/api/accounting',
+      utils: '/api/utils',
+      telegram: '/api/telegram'
+    }
+  });
+});
+
+// Health check for Railway
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Handle preflight OPTIONS requests
+app.options('*', (req, res) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.sendStatus(200);
+});
 
 const PORT = process.env.PORT || 3000;
 
