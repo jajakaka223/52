@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Card, Typography, Form, Input, Select, Button, Table, Space, Modal, message, Popconfirm, DatePicker, InputNumber } from 'antd';
 import { DeleteOutlined } from '@ant-design/icons';
 import axios from 'axios';
+import { getApiUrl } from '../config/api';
 import dayjs from 'dayjs';
 
 const { Title } = Typography;
@@ -27,7 +28,7 @@ const Vehicles = () => {
   const fetchVehicles = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await axios.get('/api/vehicles', { headers });
+      const res = await axios.get(getApiUrl('/api/vehicles', { headers });
       setVehicles(res.data?.vehicles || []);
     } catch (e) {
       message.error(e?.response?.data?.error || 'Не удалось загрузить транспорт');
@@ -38,7 +39,7 @@ const Vehicles = () => {
 
   const fetchDrivers = useCallback(async () => {
     try {
-      const res = await axios.get('/api/users', { headers });
+      const res = await axios.get(getApiUrl('/api/users', { headers });
       const list = (res.data?.users || []).filter(u => u.role === 'driver' && u.is_active !== false);
       setDrivers(list);
     } catch (_) {}
@@ -59,7 +60,7 @@ const Vehicles = () => {
         message.error('Название машины обязательно');
         return;
       }
-      await axios.post('/api/vehicles', payload, { headers });
+      await axios.post(getApiUrl('/api/vehicles', payload, { headers });
       message.success('Машина создана');
       createForm.resetFields();
       fetchVehicles();
@@ -78,7 +79,7 @@ const Vehicles = () => {
 
   const handleAssign = async (driverId) => {
     try {
-      await axios.post(`/api/vehicles/${assignModal.vehicleId}/assign-driver`, { driverId }, { headers });
+      await axios.post(getApiUrl('/api/vehicles/${assignModal.vehicleId}/assign-driver`, { driverId }, { headers });
       message.success('Водитель назначен машине');
       setAssignModal({ open: false, vehicleId: null });
       fetchVehicles();
@@ -92,8 +93,8 @@ const Vehicles = () => {
     try {
       // загрузим актуальные данные по машине и историю
       const [vRes, hRes] = await Promise.all([
-        axios.get(`/api/vehicles/${vehicle.id}`, { headers }),
-        axios.get(`/api/vehicles/${vehicle.id}/maintenance`, { headers }).catch(() => ({ data: { history: [] } }))
+        axios.get(getApiUrl('/api/vehicles/${vehicle.id}`, { headers }),
+        axios.get(getApiUrl('/api/vehicles/${vehicle.id}/maintenance`, { headers }).catch(() => ({ data: { history: [] } }))
       ]);
       const v = vRes.data?.vehicle || vehicle;
       setDetailsModal({ open: true, vehicle: v, loading: false, history: hRes.data?.history || [] });
@@ -114,16 +115,16 @@ const Vehicles = () => {
         mileage: values.mileage != null ? Number(values.mileage) : null,
         last_service_date: values.lastServiceDate ? values.lastServiceDate.format('YYYY-MM-DD') : null
       };
-      await axios.put(`/api/vehicles/${detailsModal.vehicle.id}`, payload, { headers });
+      await axios.put(getApiUrl('/api/vehicles/${detailsModal.vehicle.id}`, payload, { headers });
       // пишем историю
-      await axios.post(`/api/vehicles/${detailsModal.vehicle.id}/maintenance`, {
+      await axios.post(getApiUrl('/api/vehicles/${detailsModal.vehicle.id}/maintenance`, {
         mileage: payload.mileage,
         lastServiceDate: payload.last_service_date
       }, { headers }).catch(() => {});
       message.success('Данные обновлены');
       // обновим список + историю
       fetchVehicles();
-      const h = await axios.get(`/api/vehicles/${detailsModal.vehicle.id}/maintenance`, { headers }).catch(() => ({ data: { history: [] } }));
+      const h = await axios.get(getApiUrl('/api/vehicles/${detailsModal.vehicle.id}/maintenance`, { headers }).catch(() => ({ data: { history: [] } }));
       setDetailsModal(m => ({ ...m, history: h.data?.history || [] }));
     } catch (e) {
       message.error(e?.response?.data?.error || 'Не удалось сохранить');
@@ -132,8 +133,8 @@ const Vehicles = () => {
 
   const deleteHistory = async (row) => {
     try {
-      await axios.delete(`/api/vehicles/maintenance/${row.id}`, { headers });
-      const h = await axios.get(`/api/vehicles/${detailsModal.vehicle.id}/maintenance`, { headers }).catch(() => ({ data: { history: [] } }));
+      await axios.delete(getApiUrl('/api/vehicles/maintenance/${row.id}`, { headers });
+      const h = await axios.get(getApiUrl('/api/vehicles/${detailsModal.vehicle.id}/maintenance`, { headers }).catch(() => ({ data: { history: [] } }));
       setDetailsModal(m => ({ ...m, history: h.data?.history || [] }));
     } catch (e) {
       message.error(e?.response?.data?.error || 'Не удалось удалить запись');
@@ -152,7 +153,7 @@ const Vehicles = () => {
         <Button size="small" onClick={() => openDetails(r)}>Подробнее</Button>
         <Popconfirm title="Удалить машину?" okText="Удалить" cancelText="Отмена" onConfirm={async () => {
           try {
-            await axios.delete(`/api/vehicles/${r.id}`, { headers });
+            await axios.delete(getApiUrl('/api/vehicles/${r.id}`, { headers });
             message.success('Машина удалена');
             fetchVehicles();
           } catch (e) {

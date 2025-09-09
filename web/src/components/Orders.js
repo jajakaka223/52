@@ -3,6 +3,7 @@ import dayjs from 'dayjs';
 import { Card, Typography, Table, Button, Space, Tag, Form, Input, DatePicker, InputNumber, Select, message, Modal, Popconfirm, Checkbox } from 'antd';
 import { DeleteOutlined } from '@ant-design/icons';
 import axios from 'axios';
+import { getApiUrl } from '../config/api';
 
 const { Title } = Typography;
 const { Option } = Select;
@@ -50,7 +51,7 @@ const Orders = () => {
   const fetchOrders = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await axios.get('/api/orders', { headers });
+      const res = await axios.get(getApiUrl('/api/orders', { headers });
       setOrders(res.data?.orders || []);
     } catch (e) {
       message.error(e?.response?.data?.error || 'Не удалось загрузить заявки');
@@ -61,7 +62,7 @@ const Orders = () => {
 
   const fetchDrivers = useCallback(async () => {
     try {
-      const res = await axios.get('/api/users', { headers });
+      const res = await axios.get(getApiUrl('/api/users', { headers });
       const list = (res.data?.users || []).filter(u => u.role === 'driver' && u.is_active !== false);
       setDrivers(list);
     } catch (e) {
@@ -82,7 +83,7 @@ const Orders = () => {
       const found = orders.find(o => Number(o.id) === id);
       if (found) { setDetails(found); return; }
       try {
-        const { data } = await axios.get(`/api/orders/${id}`, { headers });
+        const { data } = await axios.get(getApiUrl('/api/orders/${id}`, { headers });
         if (data?.order) setDetails(data.order);
       } catch (_) {}
     };
@@ -124,12 +125,12 @@ const Orders = () => {
       // авторасстояние, если не заполнено
       if (!payload.distance && values.from && values.to) {
         try {
-          const dres = await axios.get('/api/utils/distance', { params: { from: values.from, to: values.to } });
+          const dres = await axios.get(getApiUrl('/api/utils/distance', { params: { from: values.from, to: values.to } });
           payload.distance = dres.data?.km || null;
         } catch (_) {}
       }
 
-      await axios.post('/api/orders', payload, { headers });
+      await axios.post(getApiUrl('/api/orders', payload, { headers });
       message.success('Заявка создана');
       createForm.resetFields();
       fetchOrders();
@@ -143,7 +144,7 @@ const Orders = () => {
 
   const handleAssign = async (driverId) => {
     try {
-      await axios.post(`/api/orders/${assignModal.orderId}/assign-driver`, { driverId }, { headers });
+      await axios.post(getApiUrl('/api/orders/${assignModal.orderId}/assign-driver`, { driverId }, { headers });
       message.success('Водитель назначен');
       setAssignModal({ open: false, orderId: null });
       fetchOrders();
@@ -177,7 +178,7 @@ const Orders = () => {
   const ensureYmapsLoaded = useCallback(async () => {
     // Загружаем JS SDK Яндекс.Карт по ключу из публичной конфигурации
     try {
-      const { data } = await axios.get('/api/utils/public-config');
+      const { data } = await axios.get(getApiUrl('/api/utils/public-config');
       const apiKey = data?.yandexKey;
       if (!apiKey) return false;
       await new Promise((resolve, reject) => {
@@ -370,7 +371,7 @@ const Orders = () => {
           <Button size="small" onClick={() => setDetails(r)}>Подробнее</Button>
           <Popconfirm title="Удалить заявку?" okText="Удалить" cancelText="Отмена" onConfirm={async () => {
             try {
-              await axios.delete(`/api/orders/${r.id}`, { headers });
+              await axios.delete(getApiUrl('/api/orders/${r.id}`, { headers });
               message.success('Заявка удалена');
               fetchOrders();
             } catch (e) {
@@ -605,15 +606,15 @@ const Orders = () => {
             // при изменении адресов можем пересчитать расстояние
             try {
               if (from && to) {
-                const dres = await axios.get('/api/utils/distance', { params: { from, to } });
+                const dres = await axios.get(getApiUrl('/api/utils/distance', { params: { from, to } });
                 payload.distance = dres.data?.km || null;
               }
             } catch (_) {}
-            await axios.put(`/api/orders/${details.id}`, payload, { headers });
+            await axios.put(getApiUrl('/api/orders/${details.id}`, payload, { headers });
             message.success('Заявка обновлена');
             setEditVisible(false);
             fetchOrders();
-            const r = await axios.get(`/api/orders/${details.id}`, { headers });
+            const r = await axios.get(getApiUrl('/api/orders/${details.id}`, { headers });
             setDetails(r.data?.order || null);
           } catch (e) {
             message.error(e?.response?.data?.error || 'Не удалось обновить заявку');

@@ -9,6 +9,7 @@ import Reports from './components/Reports';
 import Tracking from './components/Tracking';
 import Settings from './components/Settings';
 import Expenses from './components/Expenses';
+import { getApiUrl } from './config/api';
 
 const { Header, Sider, Content } = Layout;
 
@@ -39,7 +40,7 @@ function App() {
     try {
       if (savedUser) setUser(JSON.parse(savedUser));
     } catch (_) {}
-    fetch('/api/auth/verify', { headers: { Authorization: `Bearer ${token}` } })
+    fetch(getApiUrl('/api/auth/verify'), { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.json() : Promise.reject())
       .then(() => setIsLoggedIn(true))
       .catch(() => {

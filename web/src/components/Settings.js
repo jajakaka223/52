@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Card, Typography, Form, Input, Select, Button, Table, Space, Modal, message, Popconfirm } from 'antd';
 import { DeleteOutlined } from '@ant-design/icons';
 import axios from 'axios';
+import { getApiUrl } from '../config/api';
 
 const { Title } = Typography;
 const { Option } = Select;
@@ -33,7 +34,7 @@ const Settings = () => {
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const res = await axios.get('/api/users', { headers });
+      const res = await axios.get(getApiUrl('/api/users', { headers });
       setUsers(res.data?.users || []);
     } catch (e) {
       message.error(e?.response?.data?.error || 'Не удалось загрузить пользователей');
@@ -62,7 +63,7 @@ const Settings = () => {
     }
 
     try {
-      await axios.post('/api/users', {
+      await axios.post(getApiUrl('/api/users', {
         username,
         password,
         fullName,
@@ -80,7 +81,7 @@ const Settings = () => {
 
   const handleUpdate = async (values) => {
     try {
-      await axios.put(`/api/users/${editUser.id}`, {
+      await axios.put(getApiUrl('/api/users/${editUser.id}`, {
         full_name: values.full_name,
         email: values.email || null,
         phone: values.phone || null
@@ -120,7 +121,7 @@ const Settings = () => {
           <Button size="small" onClick={() => { setPwdUser(r); }}>Пароль</Button>
           <Popconfirm title="Удалить пользователя?" okText="Удалить" cancelText="Отмена" onConfirm={async () => {
             try {
-              await axios.delete(`/api/users/${r.id}`, { headers });
+              await axios.delete(getApiUrl('/api/users/${r.id}`, { headers });
               message.success('Пользователь удалён');
               fetchUsers();
             } catch (e) {

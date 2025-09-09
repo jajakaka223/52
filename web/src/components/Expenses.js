@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Card, DatePicker, Table, Typography, Input, Space, Button, message, Modal, Form, InputNumber, Popconfirm } from 'antd';
 import { DeleteOutlined } from '@ant-design/icons';
 import axios from 'axios';
+import { getApiUrl } from '../config/api';
 import dayjs from 'dayjs';
 
 const { Title } = Typography;
@@ -24,7 +25,7 @@ const Expenses = () => {
         startDate: range?.[0]?.format('YYYY-MM-DD'),
         endDate: range?.[1]?.format('YYYY-MM-DD'),
       };
-      const res = await axios.get('/api/accounting', { params, headers });
+      const res = await axios.get(getApiUrl('/api/accounting', { params, headers });
       const rows = (res.data?.records || [])
         .filter(r => Number(r.amount) < 0)
         .map(r => ({
@@ -90,7 +91,7 @@ const Expenses = () => {
     try {
       const token = localStorage.getItem('auth_token');
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
-      await axios.delete(`/api/accounting/${record.key}`, { headers });
+      await axios.delete(getApiUrl('/api/accounting/${record.key}`, { headers });
       message.success('Удалено');
       fetch();
     } catch (e) {
@@ -162,7 +163,7 @@ const Expenses = () => {
       };
       const id = form.getFieldValue('id');
       if (id) {
-        await axios.put(`/api/accounting/${id}`, {
+        await axios.put(getApiUrl('/api/accounting/${id}`, {
           date: payload.date,
           amount: payload.amount,
           description: payload.description,
@@ -172,7 +173,7 @@ const Expenses = () => {
       } else {
         // убираем перевод строки из комментария
         payload.description = (payload.description || '').toString();
-        await axios.post('/api/accounting', payload, { headers });
+        await axios.post(getApiUrl('/api/accounting', payload, { headers });
         message.success('Расход добавлен');
       }
       setIsModalOpen(false);

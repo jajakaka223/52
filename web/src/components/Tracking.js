@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Card, Typography, message } from 'antd';
 import axios from 'axios';
+import { getApiUrl } from '../config/api';
 
 const { Title } = Typography;
 
@@ -14,7 +15,7 @@ const Tracking = () => {
   const initMap = async () => {
     if (initializedRef.current) return; // защита от двойной инициализации в StrictMode
     try {
-      const { data } = await axios.get('/api/utils/public-config');
+      const { data } = await axios.get(getApiUrl('/api/utils/public-config');
       const apiKey = data?.yandexKey;
       if (!apiKey) {
         message.error('YANDEX_MAPS_API_KEY не настроен');
