@@ -1,18 +1,34 @@
 const { Pool } = require('pg');
 const { logger } = require('../utils/logger');
 
+// Prefer single connection string from Railway if provided
+const connectionString = process.env.DATABASE_URL || process.env.DATABASE_PUBLIC_URL;
 
-
-const pool = new Pool({
-  host: process.env.DB_HOST || 'localhost',
-  port: process.env.DB_PORT || 5432,
-  database: process.env.DB_NAME || 'transport_company',
-  user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || 'your_password',
-  max: 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
-});
+/**
+ * Create PG pool. If DATABASE_URL/DATABASE_PUBLIC_URL is present (Railway), use it.
+ * Otherwise use discrete DB_* vars for local/dev.
+ */
+const pool = connectionString
+  ? new Pool({
+      connectionString,
+      // Public proxy URLs usually require SSL; internal service URL does not.
+      ssl: /proxy\.rlwy\.net/i.test(connectionString)
+        ? { rejectUnauthorized: false }
+        : undefined,
+      max: 20,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 2000,
+    })
+  : new Pool({
+      host: process.env.DB_HOST || 'localhost',
+      port: process.env.DB_PORT || 5432,
+      database: process.env.DB_NAME || 'transport_company',
+      user: process.env.DB_USER || 'postgres',
+      password: process.env.DB_PASSWORD || 'your_password',
+      max: 20,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 2000,
+    });
 
 // Функция создания таблиц
 const createTables = async () => {
