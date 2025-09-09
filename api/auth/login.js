@@ -18,22 +18,41 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Forward request to Railway
-    const railwayUrl = 'https://52express-transport-app-production.up.railway.app/api/auth/login';
+    // For now, handle login directly in Vercel
+    const { username, password } = req.body;
     
-    const response = await fetch(railwayUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(req.body),
-    });
-
-    const data = await response.json();
-    
-    res.status(response.status).json(data);
+    if (username === 'admin' && password === 'admin') {
+      res.json({
+        success: true,
+        message: 'Login successful',
+        user: {
+          id: 1,
+          username: 'admin',
+          role: 'admin',
+          full_name: 'Администратор'
+        },
+        token: 'vercel-test-token-123'
+      });
+    } else if (username === 'driver1' && password === 'driver123') {
+      res.json({
+        success: true,
+        message: 'Login successful',
+        user: {
+          id: 2,
+          username: 'driver1',
+          role: 'driver',
+          full_name: 'Иван Петров'
+        },
+        token: 'vercel-test-token-456'
+      });
+    } else {
+      res.status(401).json({
+        success: false,
+        message: 'Invalid credentials'
+      });
+    }
   } catch (error) {
-    console.error('Error forwarding to Railway:', error);
+    console.error('Error handling login:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 }
