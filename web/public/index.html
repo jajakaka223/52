@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="%PUBLIC_URL%/logo-52express.png" />
+    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo-52express.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#000000" />
+    <meta name="description" content="Приложение для транспортной компании" />
+    <title>52 EXPRESS</title>
+    <style>
+      /* CSS переменные для цветов заголовков */
+      :root {
+        --header-text-color: #000;
+      }
+      
+      body[data-theme="dark"] {
+        --header-text-color: #fff;
+      }
+      
+      /* Тёмная тема — как на 2‑м скрине */
+      body[data-theme="dark"] { background: #0f0f0f; color: #ddd; }
+      body[data-theme="dark"] .ant-layout { background: #0f0f0f; }
+      body[data-theme="dark"] .ant-layout-content { background: #121212; }
+      body[data-theme="dark"] .ant-layout-sider { background: #0b0b0b; }
+      body[data-theme="dark"] .ant-menu-dark, 
+      body[data-theme="dark"] .ant-menu { background: #0b0b0b !important; }
+      body[data-theme="dark"] .ant-card { background: #151515; border-color: #262626; }
+      body[data-theme="dark"] .ant-card-head-title { color: #fff; }
+      body[data-theme="dark"] .ant-form-item-required { color: #fff; }
+      body[data-theme="dark"] .ant-pagination-item-link { color: #fff; }
+      body[data-theme="dark"] .ant-pagination-item a { color: #fff; }
+      body[data-theme="dark"] .ant-pagination-item { background: #1a1a1a; border-color: #333; }
+      body[data-theme="dark"] .ant-pagination-item:hover { background: #1e1e1e; border-color: #444; }
+      body[data-theme="dark"] .ant-pagination-item-active { background: #0d0d0d; border-color: #1677ff !important; }
+      body[data-theme="dark"] .ant-pagination-prev .ant-pagination-item-link,
+      body[data-theme="dark"] .ant-pagination-next .ant-pagination-item-link { color: #fff; }
+      body[data-theme="dark"] .ant-form-item-label > label { color: #fff !important; }
+      body[data-theme="dark"] .ant-form-item-label > label::after { color: #fff; }
+      body[data-theme="dark"] .ant-descriptions-item-label,
+      body[data-theme="dark"] .ant-descriptions-item-content { color: #fff !important; }
+      /* Отчёты: вторичный текст и суммы */
+      body[data-theme="dark"] .ant-typography-secondary { color: #ddd !important; }
+      body[data-theme="dark"] .reports-sum { color: #ddd !important; }
+      body[data-theme="dark"] .ant-list,
+      body[data-theme="dark"] .ant-list-item,
+      body[data-theme="dark"] .ant-list-item span,
+      body[data-theme="dark"] .ant-card p { color: #fff; }
+      body[data-theme="dark"] .ant-typography,
+      body[data-theme="dark"] .ant-statistic-title,
+      body[data-theme="dark"] .ant-statistic-content,
+      body[data-theme="dark"] .ant-list,
+      body[data-theme="dark"] .ant-list-item,
+      body[data-theme="dark"] .ant-descriptions,
+      body[data-theme="dark"] .ant-descriptions-item-label,
+      body[data-theme="dark"] .ant-descriptions-item-content { color: #ddd; }
+      body[data-theme="dark"] .ant-table { background: #151515; }
+      body[data-theme="dark"] .ant-table-thead > tr > th { background: #1a1a1a; color: #bfbfbf; }
+      body[data-theme="dark"] .ant-table-tbody > tr > td { background: #151515; color: #e0e0e0; }
+      body[data-theme="dark"] .ant-modal-content { background: #1a1a1a; color: #ddd; }
+      /* Фон заголовка модалки и близлежащих элементов — убрать белую полосу */
+      body[data-theme="dark"] .ant-modal-header { background: #1a1a1a; border-bottom-color: #2b2b2b; }
+      body[data-theme="dark"] .ant-modal-close { color: #ddd; }
+      body[data-theme="dark"] .ant-modal-close:hover { color: #fff; }
+      body[data-theme="dark"] .ant-input,
+      body[data-theme="dark"] .ant-input-number,
+      body[data-theme="dark"] .ant-select-selector,
+      body[data-theme="dark"] .ant-picker,
+      body[data-theme="dark"] textarea {
+        background: #1a1a1a !important;
+        color: #e0e0e0 !important;
+        border-color: #333 !important;
+      }
+      /* Логин/пароль в тёмной теме — белый текст и плейсхолдеры */
+      body[data-theme="dark"] input::placeholder { color: #ccc !important; opacity: 1; }
+      body[data-theme="dark"] .ant-input, 
+      body[data-theme="dark"] .ant-input-password input { color: #fff !important; }
+      body[data-theme="dark"] .ant-input-affix-wrapper { background: #1a1a1a !important; border-color: #333 !important; }
+      body[data-theme="dark"] .ant-input-affix-wrapper .anticon { color: #fff; }
+      /* Пагинация — активная страница синяя */
+      body[data-theme="dark"] .ant-pagination-item-active a { color: #1677ff !important; }
+      body[data-theme="dark"] .ant-pagination-item-active { border-color: #1677ff !important; }
+      body[data-theme="dark"] .ant-btn-primary { background: #177ddc; border-color: #177ddc; }
+      /* Кнопки действий и вторичные (default) в тёмной теме */
+      body[data-theme="dark"] .ant-btn-default { background: #2a2a2a; color: #fff; border-color: #3a3a3a; }
+      body[data-theme="dark"] .ant-btn-default:hover { background: #333; border-color: #4a4a4a; }
+      /* DatePicker и его иконка */
+      body[data-theme="dark"] .ant-picker { background: #1a1a1a; color: #fff; border-color: #333; }
+      body[data-theme="dark"] .ant-picker-suffix, 
+      body[data-theme="dark"] .ant-picker-suffix .anticon { color: #fff; }
+      /* Всплывающий календарь (dropdown) — тёмный */
+      body[data-theme="dark"] .ant-picker-dropdown .ant-picker-panel { background: #1a1a1a; }
+      body[data-theme="dark"] .ant-picker-dropdown .ant-picker-header { background: #1a1a1a; color: #ddd; border-bottom-color: #333; }
+      body[data-theme="dark"] .ant-picker-dropdown .ant-picker-header .ant-picker-header-view button { color: #ddd; }
+      body[data-theme="dark"] .ant-picker-dropdown .ant-picker-content th { color: #aaa; }
+      body[data-theme="dark"] .ant-picker-dropdown .ant-picker-content td { color: #ddd; }
+      body[data-theme="dark"] .ant-picker-dropdown .ant-picker-cell .ant-picker-cell-inner { color: #ddd; }
+      /* Цвет выделенного диапазона — тёмный, не белый */
+      body[data-theme="dark"] .ant-picker-cell-in-view.ant-picker-cell-in-range { background: #222 !important; }
+      body[data-theme="dark"] .ant-picker-cell-in-view.ant-picker-cell-range-hover,
+      body[data-theme="dark"] .ant-picker-cell-in-view.ant-picker-cell-range-hover-start,
+      body[data-theme="dark"] .ant-picker-cell-in-view.ant-picker-cell-range-hover-end { background: #262626 !important; }
+      body[data-theme="dark"] .ant-picker-dropdown .ant-picker-cell-in-view.ant-picker-cell-selected .ant-picker-cell-inner { background: #1677ff; color: #fff; }
+      body[data-theme="dark"] .ant-picker-dropdown .ant-picker-cell-in-view.ant-picker-cell-today .ant-picker-cell-inner::before { border-color: #1677ff; }
+      /* Текст и плейсхолдеры в инпутах пикера — сделать светлыми */
+      body[data-theme="dark"] .ant-picker-input > input { color: #f0f0f0 !important; }
+      body[data-theme="dark"] .ant-picker-input > input::placeholder { color: #cfcfcf !important; opacity: 1; }
+      body[data-theme="dark"] .ant-picker-separator { color: #9bbcff !important; }
+      /* Активная синяя полоска под RangePicker */
+      body[data-theme="dark"] .ant-picker-range .ant-picker-active-bar { background: #2e2e2e !important; }
+      body[data-theme="dark"] .ant-picker-focused .ant-picker-active-bar { background: #2e2e2e !important; }
+      body[data-theme="dark"] .ant-picker-dropdown .ant-picker-footer { background: #1a1a1a; border-top-color: #333; }
+      /* Time panel */
+      body[data-theme="dark"] .ant-picker-time-panel { background: #1a1a1a; }
+      body[data-theme="dark"] .ant-picker-time-panel-column { border-color: #333; }
+      body[data-theme="dark"] .ant-picker-time-panel-column > li { color: #ddd; }
+      body[data-theme="dark"] .ant-picker-time-panel-column > li.ant-picker-time-panel-cell-selected .ant-picker-time-panel-cell-inner { background: #1677ff; color: #fff; }
+      body[data-theme="dark"] .ant-select-selection-placeholder { color: #bfbfbf !important; }
+      body[data-theme="dark"] .ant-btn-dangerous { background: #a61d24; border-color: #a61d24; }
+      /* Hover строк таблицы не выбелять */
+      body[data-theme="dark"] .ant-table-tbody > tr.ant-table-row:hover > td { background: #1a1a1a !important; }
+      /* Popconfirm / Popover — тёмная тема */
+      body[data-theme="dark"] .ant-popover .ant-popover-inner { background: #1a1a1a; }
+      body[data-theme="dark"] .ant-popover .ant-popover-title,
+      body[data-theme="dark"] .ant-popover .ant-popover-inner-content { color: #ddd; }
+      body[data-theme="dark"] .ant-popover .ant-popover-arrow::before { background: #1a1a1a; }
+      /* Заголовки модалок */
+      body[data-theme="dark"] .ant-modal-title { color: #ddd; }
+      /* Кнопки переключения темы */
+      body[data-theme="dark"] .ant-layout-header .ant-btn { color: #fff; }
+      /* Статусы (Tag) — сделать более яркими */
+      body[data-theme="dark"] .ant-tag { border-width: 1px; }
+      body[data-theme="dark"] .ant-tag-default { background: #303030; color: #ffffff; border-color: #4a4a4a; }
+      body[data-theme="dark"] .ant-tag-processing { background: rgba(24,144,255,0.35); color: #e6f7ff; border-color: #177ddc; }
+      body[data-theme="dark"] .ant-tag-warning { background: rgba(250,173,20,0.35); color: #fff7e6; border-color: #d48806; }
+      body[data-theme="dark"] .ant-tag-success { background: rgba(82,196,26,0.35); color: #f6ffed; border-color: #389e0d; }
+      body[data-theme="dark"] .ant-tag-error { background: rgba(245,34,45,0.38); color: #fff1f0; border-color: #cf1322; }
+
+      /* Светлая тема — тоже более насыщенные статусы */
+      body:not([data-theme="dark"]) .ant-tag { border-width: 1px; }
+      /* Статус Новая (default) — сделать текст чёрным в светлой теме */
+      body:not([data-theme="dark"]) .ant-tag-default { background: #f5f5f5; color: #000; border-color: #d9d9d9; }
+      body:not([data-theme="dark"]) .ant-tag-processing { background: #e6f4ff; color: #0958d9; border-color: #91caff; }
+      body:not([data-theme="dark"]) .ant-tag-warning { background: #fff7e6; color: #ad6800; border-color: #ffd591; }
+      body:not([data-theme="dark"]) .ant-tag-success { background: #f6ffed; color: #237804; border-color: #b7eb8f; }
+      body:not([data-theme="dark"]) .ant-tag-error { background: #fff1f0; color: #a8071a; border-color: #ffa39e; }
+      /* Цвет текста внутри InputNumber */
+      body[data-theme="dark"] .ant-input-number-input { color: #fff !important; background: transparent; }
+      /* Select dropdown (в т.ч. выбор статуса) — тёмная тема */
+      body[data-theme="dark"] .ant-select-dropdown { background: #1a1a1a !important; border-color: #333 !important; }
+      body[data-theme="dark"] .ant-select-item { color: #ddd; }
+      body[data-theme="dark"] .ant-select-item-option-active { background: #262626 !important; }
+      body[data-theme="dark"] .ant-select-item-option-selected { background: #0f0f0f !important; color: #fff !important; }
+      body[data-theme="dark"] .ant-select-dropdown .ant-empty-description { color: #999; }
+      /* Hover строки таблиц в тёмной теме — тёмный фон */
+      body[data-theme="dark"] .ant-table-tbody > tr:hover > td { background: #1a1a1a !important; }
+      /* Светлая тема — убрать белый hover в шапке/ячейках, сделать серым */
+      body:not([data-theme="dark"]) .ant-table-thead > tr > th:hover { background: #ededed !important; }
+      body:not([data-theme="dark"]) .ant-table-tbody > tr:hover > td { background: #fafafa !important; }
+      /* Подсказка сортировки на русском */
+      .ant-table-column-sorters { cursor: pointer; }
+      .ant-tooltip-inner { font-size: 12px; }
+      /* Фон активного столбца сортировки + выравнивания цветов в тёмной теме */
+      body[data-theme="dark"] .ant-table-thead > tr > th.ant-table-column-sort { background: #202020 !important; }
+      body[data-theme="dark"] .ant-table-column-sorters:hover { background: #1a1a1a !important; }
+      body[data-theme="dark"] .ant-table-thead > tr > th { color: #d9d9d9; }
+
+      /* Светлая тема — серые шапки столбцов, в т.ч. активные */
+      body:not([data-theme="dark"]) .ant-table-thead > tr > th { background: #f3f3f3; }
+      body:not([data-theme="dark"]) .ant-table-thead > tr > th.ant-table-column-sort { background: #e9e9e9 !important; }
+      body:not([data-theme="dark"]) .ant-table-column-sorters:hover { background: #ededed !important; }
+
+      /* Переменные для карточек доходов */
+      body:not([data-theme="dark"]) {
+        /* Вернули стиль, как в тёмной теме */
+        --income-bg: #14243a;
+        --income-text: #fff;
+        --income-caption: #ddd;
+        --income-amount1: #b7eb8f;
+        --income-amount2: #69c0ff;
+      }
+      body[data-theme="dark"] {
+        --income-bg: #14243a;
+        --income-text: #fff;
+        --income-caption: #ddd;
+        --income-amount1: #b7eb8f;
+        --income-amount2: #69c0ff;
+      }
+      /* Центровка контейнера карты в модалке */
+      .map-center-wrap { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; }
+      .map-center-wrap iframe { display: block; margin: 0 auto; }
+    </style>
+  </head>
+  <body>
+    <noscript>Для работы приложения необходимо включить JavaScript.</noscript>
+    <div id="root"></div>
+  </body>
+</html>
