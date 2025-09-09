@@ -1,4 +1,5 @@
 const { Pool } = require('pg');
+const bcrypt = require('bcryptjs');
 
 // Railway база данных
 const railwayPool = new Pool({
@@ -14,8 +15,11 @@ async function initData() {
     await railwayPool.query('SELECT 1');
     console.log('✅ Подключение к Railway установлено');
     
+    // Хешируем пароли
+    const adminPasswordHash = await bcrypt.hash('admin', 10);
+    const driverPasswordHash = await bcrypt.hash('driver123', 10);
+    
     // Создаем администратора
-    const adminPassword = 'admin'; // В реальном проекте нужно хешировать
     const adminQuery = `
       INSERT INTO users (username, password, email, role, full_name, phone, created_at) 
       VALUES ($1, $2, $3, $4, $5, $6, NOW())
@@ -24,7 +28,7 @@ async function initData() {
     
     await railwayPool.query(adminQuery, [
       'admin',
-      adminPassword,
+      adminPasswordHash,
       'admin@52express.com',
       'admin',
       'Администратор',
@@ -41,7 +45,7 @@ async function initData() {
     
     await railwayPool.query(driverQuery, [
       'driver1',
-      'driver123',
+      driverPasswordHash,
       'driver@52express.com',
       'driver',
       'Иван Петров',
@@ -52,45 +56,41 @@ async function initData() {
     // Создаем тестовые автомобили
     const vehicles = [
       {
-        make: 'ГАЗ',
+        name: 'ГАЗ ГАЗель NEXT',
         model: 'ГАЗель NEXT',
-        year: 2022,
-        license_plate: 'А123БВ777',
-        capacity: 1500,
-        status: 'available'
+        plate_number: 'А123БВ777',
+        mileage: 50000,
+        last_service_date: '2024-01-15'
       },
       {
-        make: 'КАМАЗ',
+        name: 'КАМАЗ 5320',
         model: '5320',
-        year: 2021,
-        license_plate: 'В456ГД777',
-        capacity: 8000,
-        status: 'available'
+        plate_number: 'В456ГД777',
+        mileage: 75000,
+        last_service_date: '2024-02-20'
       },
       {
-        make: 'МАЗ',
+        name: 'МАЗ 6312',
         model: '6312',
-        year: 2023,
-        license_plate: 'С789ЕЖ777',
-        capacity: 12000,
-        status: 'maintenance'
+        plate_number: 'С789ЕЖ777',
+        mileage: 30000,
+        last_service_date: '2024-03-10'
       }
     ];
     
     for (const vehicle of vehicles) {
       const vehicleQuery = `
-        INSERT INTO vehicles (make, model, year, license_plate, capacity, status, created_at) 
-        VALUES ($1, $2, $3, $4, $5, $6, NOW())
-        ON CONFLICT (license_plate) DO NOTHING
+        INSERT INTO vehicles (name, model, plate_number, mileage, last_service_date, created_at) 
+        VALUES ($1, $2, $3, $4, $5, NOW())
+        ON CONFLICT (plate_number) DO NOTHING
       `;
       
       await railwayPool.query(vehicleQuery, [
-        vehicle.make,
+        vehicle.name,
         vehicle.model,
-        vehicle.year,
-        vehicle.license_plate,
-        vehicle.capacity,
-        vehicle.status
+        vehicle.plate_number,
+        vehicle.mileage,
+        vehicle.last_service_date
       ]);
     }
     console.log('✅ Тестовые автомобили созданы');
@@ -98,39 +98,48 @@ async function initData() {
     // Создаем тестовые заказы
     const orders = [
       {
-        customer_name: 'ООО "Рога и копыта"',
-        customer_phone: '+7 (495) 123-45-67',
-        pickup_address: 'Москва, ул. Ленина, 1',
-        delivery_address: 'Санкт-Петербург, Невский проспект, 100',
-        cargo_description: 'Мебель',
+        date: '2024-09-09',
+        direction: 'Москва - Санкт-Петербург',
+        distance: 635.5,
         weight: 500,
-        status: 'pending'
+        amount: 15000,
+        company: 'ООО "Рога и копыта"',
+        client_name: 'Иванов И.И.',
+        phone: '+7 (495) 123-45-67',
+        email: 'ivanov@roga-kopyta.ru',
+        status: 'new'
       },
       {
-        customer_name: 'ИП Сидоров',
-        customer_phone: '+7 (812) 234-56-78',
-        pickup_address: 'Санкт-Петербург, ул. Пушкина, 10',
-        delivery_address: 'Москва, ул. Тверская, 50',
-        cargo_description: 'Электроника',
+        date: '2024-09-10',
+        direction: 'Санкт-Петербург - Москва',
+        distance: 635.5,
         weight: 200,
+        amount: 8000,
+        company: 'ИП Сидоров',
+        client_name: 'Сидоров С.С.',
+        phone: '+7 (812) 234-56-78',
+        email: 'sidorov@example.com',
         status: 'in_progress'
       }
     ];
     
     for (const order of orders) {
       const orderQuery = `
-        INSERT INTO orders (customer_name, customer_phone, pickup_address, delivery_address, 
-                           cargo_description, weight, status, created_at) 
-        VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+        INSERT INTO orders (date, direction, distance, weight, amount, company, 
+                           client_name, phone, email, status, created_at) 
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
       `;
       
       await railwayPool.query(orderQuery, [
-        order.customer_name,
-        order.customer_phone,
-        order.pickup_address,
-        order.delivery_address,
-        order.cargo_description,
+        order.date,
+        order.direction,
+        order.distance,
         order.weight,
+        order.amount,
+        order.company,
+        order.client_name,
+        order.phone,
+        order.email,
         order.status
       ]);
     }
@@ -142,27 +151,33 @@ async function initData() {
         type: 'fuel',
         amount: 5000,
         description: 'Заправка топливом',
-        date: new Date()
+        date: '2024-09-09',
+        category: 'Топливо',
+        mileage: 50000
       },
       {
         type: 'maintenance',
         amount: 15000,
         description: 'Техническое обслуживание',
-        date: new Date()
+        date: '2024-09-08',
+        category: 'ТО',
+        mileage: 49000
       }
     ];
     
     for (const expense of expenses) {
       const expenseQuery = `
-        INSERT INTO expenses (type, amount, description, date, created_at) 
-        VALUES ($1, $2, $3, $4, NOW())
+        INSERT INTO accounting (type, amount, description, date, category, mileage, created_at) 
+        VALUES ($1, $2, $3, $4, $5, $6, NOW())
       `;
       
       await railwayPool.query(expenseQuery, [
         expense.type,
         expense.amount,
         expense.description,
-        expense.date
+        expense.date,
+        expense.category,
+        expense.mileage
       ]);
     }
     console.log('✅ Тестовые расходы созданы');
