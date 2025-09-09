@@ -9,14 +9,15 @@
       }
     }
   ],
-  "rewrites": [
+  "routes": [
     {
-      "source": "/api/:path*",
-      "destination": "https://52express-transport-app-production.up.railway.app/api/:path*"
+      "src": "/api/(.*)",
+      "dest": "https://52express-transport-app-production.up.railway.app/api/$1",
+      "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
     },
     {
-      "source": "/(.*)",
-      "destination": "/index.html"
+      "src": "/(.*)",
+      "dest": "/index.html"
     }
   ]
 }
