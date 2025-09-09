@@ -13,6 +13,12 @@
       "use": "@vercel/node"
     }
   ],
+  "rewrites": [
+    {
+      "source": "/api/auth/login",
+      "destination": "/api/login"
+    }
+  ],
   "routes": [
     {
       "src": "/(.*)",
