@@ -17,7 +17,7 @@ const pool = connectionString
         : undefined,
       max: 20,
       idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 2000,
+      connectionTimeoutMillis: 10000,
     })
   : new Pool({
       host: process.env.DB_HOST || 'localhost',
@@ -27,7 +27,7 @@ const pool = connectionString
       password: process.env.DB_PASSWORD || 'your_password',
       max: 20,
       idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 2000,
+      connectionTimeoutMillis: 10000,
     });
 
 // Функция создания таблиц
@@ -144,17 +144,34 @@ const createTables = async () => {
 };
 
 const connectDB = async () => {
-  try {
-    const client = await pool.connect();
-    logger.info('✅ База данных PostgreSQL подключена успешно');
-    
-    // Создаем таблицы если их нет
-    await createTables();
-    
-    client.release();
-  } catch (error) {
-    logger.error('❌ Ошибка подключения к базе данных:', error);
-    process.exit(1);
+  const redact = (str) => (str ? str.replace(/:(.*?)@/, ':***@') : '');
+  const isProxy = !!connectionString && /proxy\.rlwy\.net/i.test(connectionString);
+  let attempt = 0;
+
+  while (true) {
+    attempt += 1;
+    try {
+      logger.info(
+        `🗄️  Подключение к PostgreSQL (попытка ${attempt}) — ` +
+          (connectionString
+            ? `connectionString=${redact(connectionString)} ssl=${isProxy ? 'on' : 'off'}`
+            : `host=${process.env.DB_HOST || 'localhost'} db=${process.env.DB_NAME || 'transport_company'}`)
+      );
+
+      const client = await pool.connect();
+      logger.info('✅ База данных PostgreSQL подключена успешно');
+
+      // Создаем таблицы если их нет
+      await createTables();
+
+      client.release();
+      break; // успех, выходим из цикла
+    } catch (error) {
+      const delayMs = Math.min(30000, 1000 * Math.pow(2, Math.min(attempt, 5))); // эксп. бэкофф до 30с
+      logger.error(`❌ Ошибка подключения к базе данных (попытка ${attempt}): ${error.message}. Повтор через ${Math.round(delayMs/1000)}с`);
+      await new Promise((res) => setTimeout(res, delayMs));
+      // не завершаем процесс, продолжаем пытаться — Railway успеет поднять БД/сеть
+    }
   }
 };
 
