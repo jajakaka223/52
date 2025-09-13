@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { Form, Input, Button, Card, message } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
 import axios from 'axios';
-import { getApiUrl } from '../config/api';
 
 const Login = ({ onLogin }) => {
   const [loading, setLoading] = useState(false);
@@ -10,7 +9,7 @@ const Login = ({ onLogin }) => {
   const onFinish = async (values) => {
     setLoading(true);
     try {
-      const response = await axios.post(getApiUrl('/api/auth/login'), values);
+      const response = await axios.post('/api/auth/login', values);
       const { token, user, message: serverMessage } = response.data || {};
 
       if (token && user) {
@@ -94,9 +93,7 @@ const Login = ({ onLogin }) => {
           </Form.Item>
         </Form>
         
-        <div style={{ textAlign: 'center', color: '#666', fontSize: '12px' }}>
-          <p>Демо аккаунт: admin / admin</p>
-        </div>
+        
       </Card>
     </div>
   );

@@ -1,18 +1,17 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Card, DatePicker, Table, Typography, Input, Space, Button, message, Modal, Form, InputNumber, Popconfirm } from 'antd';
+import { Card, DatePicker, Table, Typography, Input, Space, Button, message, Modal, Form, InputNumber, Popconfirm, Select } from 'antd';
 import { DeleteOutlined } from '@ant-design/icons';
-import axios from 'axios';
-import { getApiUrl } from '../config/api';
+import api from '../config/http';
 import dayjs from 'dayjs';
 
 const { Title } = Typography;
 
-const Expenses = () => {
+const Expenses = ({ theme }) => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [range, setRange] = useState([dayjs().startOf('month'), dayjs()]);
   const [search, setSearch] = useState('');
-  const [isDark, setIsDark] = useState(typeof document !== 'undefined' && document.body?.getAttribute('data-theme') === 'dark');
+  const [isDark, setIsDark] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [form] = Form.useForm();
 
@@ -25,7 +24,7 @@ const Expenses = () => {
         startDate: range?.[0]?.format('YYYY-MM-DD'),
         endDate: range?.[1]?.format('YYYY-MM-DD'),
       };
-      const res = await axios.get(getApiUrl('/api/accounting', { params, headers });
+      const res = await api.get('/api/accounting', { params, headers });
       const rows = (res.data?.records || [])
         .filter(r => Number(r.amount) < 0)
         .map(r => ({
@@ -45,6 +44,10 @@ const Expenses = () => {
 
   useEffect(() => { fetch(); }, [fetch]);
 
+  useEffect(() => {
+    setIsDark(theme === 'dark');
+  }, [theme]);
+
   const onRangeChange = (vals) => {
     if (vals && vals.length === 2) {
       setRange(vals);
@@ -53,15 +56,6 @@ const Expenses = () => {
 
   useEffect(() => { fetch(); }, [fetch, range]);
 
-  useEffect(() => {
-    if (typeof MutationObserver === 'undefined') return;
-    const observer = new MutationObserver(() => {
-      const dark = document.body?.getAttribute('data-theme') === 'dark';
-      setIsDark(dark);
-    });
-    observer.observe(document.body, { attributes: true, attributeFilter: ['data-theme'] });
-    return () => observer.disconnect();
-  }, []);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -91,8 +85,30 @@ const Expenses = () => {
     try {
       const token = localStorage.getItem('auth_token');
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
-      await axios.delete(getApiUrl('/api/accounting/${record.key}`, { headers });
+      await api.delete(`/api/accounting/${record.key}`, { headers });
       message.success('Удалено');
+      // Вернуть сумму обратно в бюджет, если категория известна
+      try {
+        const map = {
+          'Налог': 'tax',
+          'Зарплата': 'salary',
+          'Ремонт': 'repair',
+          'Заправка': 'fuel',
+          'Сейф': 'safe',
+          'Чистая прибыль': 'profit',
+          'Прочее': 'profit'
+        };
+        const key = map[record.category];
+        if (key) {
+          const balances = JSON.parse(localStorage.getItem('budget_balances_v1') || 'null') || { tax: 0, salary: 0, repair: 0, fuel: 0, safe: 0, profit: 0 };
+          const round2 = n => Math.round(Number(n||0)*100)/100;
+          balances[key] = round2(Number(balances[key] || 0) + Number(record.amount || 0));
+          localStorage.setItem('budget_balances_v1', JSON.stringify(balances));
+          const hist = JSON.parse(localStorage.getItem('budget_history_v1') || '[]');
+          hist.unshift({ ts: Date.now(), category: record.category, delta: Number(record.amount || 0), comment: `Возврат: удалён расход` });
+          localStorage.setItem('budget_history_v1', JSON.stringify(hist.slice(0, 500)));
+        }
+      } catch (_) {}
       fetch();
     } catch (e) {
       message.error('Не удалось удалить');
@@ -163,7 +179,7 @@ const Expenses = () => {
       };
       const id = form.getFieldValue('id');
       if (id) {
-        await axios.put(getApiUrl('/api/accounting/${id}`, {
+        await api.put(`/api/accounting/${id}`, {
           date: payload.date,
           amount: payload.amount,
           description: payload.description,
@@ -173,8 +189,31 @@ const Expenses = () => {
       } else {
         // убираем перевод строки из комментария
         payload.description = (payload.description || '').toString();
-        await axios.post(getApiUrl('/api/accounting', payload, { headers });
+        await api.post('/api/accounting', payload, { headers });
         message.success('Расход добавлен');
+        // Синхронизируем бюджет: вычитаем из соответствующего баланса
+        try {
+          const map = {
+            'Налог': 'tax',
+            'Зарплата': 'salary',
+            'Ремонт': 'repair',
+            'Заправка': 'fuel',
+            'Сейф': 'safe',
+            'Чистая прибыль': 'profit',
+            'Прочее': 'profit'
+          };
+          const key = map[values.category];
+          if (key) {
+            const balances = JSON.parse(localStorage.getItem('budget_balances_v1') || 'null') || { tax: 0, salary: 0, repair: 0, fuel: 0, safe: 0, profit: 0 };
+            const round2 = n => Math.round(Number(n||0)*100)/100;
+            const amt = Math.abs(Number(values.amount || 0));
+            balances[key] = round2(Number(balances[key] || 0) - amt);
+            localStorage.setItem('budget_balances_v1', JSON.stringify(balances));
+            const hist = JSON.parse(localStorage.getItem('budget_history_v1') || '[]');
+            hist.unshift({ ts: Date.now(), category: values.category, delta: -amt, comment: `Расход добавлен` });
+            localStorage.setItem('budget_history_v1', JSON.stringify(hist.slice(0, 500)));
+          }
+        } catch (_) {}
       }
       setIsModalOpen(false);
       form.resetFields();
@@ -188,6 +227,58 @@ const Expenses = () => {
 
   return (
     <div>
+      <style>
+        {isDark && `
+          .ant-input::placeholder {
+            color: #8c8c8c !important;
+          }
+          .ant-input:focus::placeholder {
+            color: #8c8c8c !important;
+          }
+          [data-theme="dark"] .ant-table-tbody > tr:hover > td {
+            background: #1f1f1f !important;
+            border-color: #303030 !important;
+          }
+          [data-theme="dark"] .ant-table-tbody > tr.ant-table-row:hover > td {
+            background: #1f1f1f !important;
+            border-color: #303030 !important;
+          }
+          [data-theme="dark"] .ant-table-tbody > tr.ant-table-row-selected:hover > td {
+            background: #1f1f1f !important;
+            border-color: #303030 !important;
+          }
+          [data-theme="dark"] .ant-table-tbody > tr.ant-table-row-selected > td {
+            background: #1f1f1f !important;
+            border-color: #303030 !important;
+          }
+          [data-theme="dark"] .ant-table-tbody > tr > td {
+            border-color: #303030 !important;
+          }
+          [data-theme="dark"] .ant-table-thead > tr > th {
+            border-color: #303030 !important;
+            background: #141414 !important;
+          }
+          [data-theme="dark"] .ant-table-tbody > tr > td.ant-table-cell-row-hover {
+            background: #1f1f1f !important;
+            border-color: #303030 !important;
+          }
+          .ant-input::placeholder {
+            color: #8c8c8c !important;
+          }
+          .ant-input:focus::placeholder {
+            color: #8c8c8c !important;
+          }
+          .ant-input-textarea::placeholder {
+            color: #8c8c8c !important;
+          }
+          .ant-input-textarea:focus::placeholder {
+            color: #8c8c8c !important;
+          }
+          .ant-select-selection-placeholder {
+            color: #8c8c8c !important;
+          }
+        `}
+      </style>
       <Title level={2}>Расходы</Title>
       <Card title="Список расходов">
         <Space style={{ marginBottom: 12 }} wrap>
@@ -195,7 +286,7 @@ const Expenses = () => {
             value={range}
             onChange={onRangeChange}
             format="DD.MM.YYYY"
-            placeholder={["Выберите дату", "Выберите дату"]}
+            placeholder={["Выбрать дату", "Выбрать дату"]}
           />
           <Input.Search placeholder="Поиск по категории/комментарию" allowClear onSearch={setSearch} onChange={(e) => setSearch(e.target.value)} style={{ width: 320 }} />
           <Button type="primary" onClick={() => setIsModalOpen(true)}>Добавить</Button>
@@ -226,17 +317,31 @@ const Expenses = () => {
           <Form.Item name="id" hidden>
             <Input />
           </Form.Item>
-          <Form.Item label="Дата" name="date" rules={[{ required: true, message: 'Укажите дату' }]}>
-            <DatePicker format="DD.MM.YYYY" style={{ width: '100%' }} />
+          <Form.Item label="Дата" name="date" rules={[{ required: true, message: 'Укажите дату' }]}> 
+            <DatePicker format="DD.MM.YYYY" style={{ width: '100%' }} placeholder="Выбрать дату" />
           </Form.Item>
           <Form.Item label="Категория" name="category" rules={[{ required: true, message: 'Укажите категорию' }]}>
-            <Input placeholder="Например: Топливо, Ремонт, Стоянка" />
+            <Select placeholder="Выберите категорию" allowClear>
+              <Select.Option value="Налог">Налог</Select.Option>
+              <Select.Option value="Зарплата">Зарплата</Select.Option>
+              <Select.Option value="Ремонт">Ремонт</Select.Option>
+              <Select.Option value="Заправка">Заправка</Select.Option>
+              <Select.Option value="Сейф">Сейф</Select.Option>
+              <Select.Option value="Прочее">Прочее</Select.Option>
+            </Select>
           </Form.Item>
           <Form.Item label="Сумма" name="amount" rules={[{ required: true, message: 'Укажите сумму' }]}>
             <InputNumber min={0} step={100} style={{ width: '100%' }} formatter={(v)=>`${v}`.replace(/\B(?=(\d{3})+(?!\d))/g,' ')} parser={(v)=>v.replace(/\s/g,'')} />
           </Form.Item>
           <Form.Item label="Комментарий" name="comment">
-            <Input.TextArea rows={3} placeholder="Комментарий (необязательно)" />
+            <Input.TextArea 
+              rows={3} 
+              placeholder="Комментарий (необязательно)" 
+              style={{ 
+                color: isDark ? '#fff' : undefined, 
+                background: isDark ? '#141414' : undefined 
+              }}
+            />
           </Form.Item>
         </Form>
       </Modal>

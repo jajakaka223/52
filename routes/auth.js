@@ -130,6 +130,13 @@ router.post('/login', async (req, res) => {
       role: user.rows[0].role
     }, req.ip);
 
+    // Получим человеко-читаемое название роли
+    let roleTitle = null;
+    try {
+      const r = await pool.query('SELECT title FROM roles WHERE key = $1', [user.rows[0].role]);
+      roleTitle = r.rows[0]?.title || null;
+    } catch (_) {}
+
     res.json({
       message: 'Вход выполнен успешно',
       token,
@@ -138,6 +145,7 @@ router.post('/login', async (req, res) => {
         username: user.rows[0].username,
         fullName: user.rows[0].full_name,
         role: user.rows[0].role,
+        role_title: roleTitle,
         email: user.rows[0].email,
         phone: user.rows[0].phone
       }
@@ -170,9 +178,16 @@ router.get('/verify', async (req, res) => {
       return res.status(401).json({ error: 'Пользователь не найден или деактивирован' });
     }
 
+    // Присвоим title роли
+    let roleTitle = null;
+    try {
+      const r = await pool.query('SELECT title FROM roles WHERE key = $1', [user.rows[0].role]);
+      roleTitle = r.rows[0]?.title || null;
+    } catch (_) {}
+
     res.json({
       valid: true,
-      user: user.rows[0]
+      user: { ...user.rows[0], role_title: roleTitle }
     });
 
   } catch (error) {

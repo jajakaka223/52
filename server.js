@@ -11,7 +11,7 @@ if (fs.existsSync(envPath)) {
   const envContent = fs.readFileSync(envPath, 'utf8');
   console.log('🔍 Содержимое .env файла:');
   console.log(envContent);
-  
+
   envContent.split('\n').forEach(line => {
     const [key, ...valueParts] = line.split('=');
     if (key && !key.startsWith('#') && valueParts.length > 0) {
@@ -47,19 +47,16 @@ const io = socketIo(server, {
 
 // Middleware
 app.use(helmet());
-app.use(cors({
-  origin: true, // Разрешаем все домены
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
-}));
+app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Rate limiting
+// Rate limiting (с щадящими лимитами, чтобы не ловить 429 при активной работе)
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100 // limit each IP to 100 requests per windowMs
+  windowMs: 1 * 60 * 1000, // 1 минута
+  max: 1000,               // до 1000 запросов в минуту на IP
+  standardHeaders: true,
+  legacyHeaders: false
 });
 app.use(limiter);
 
@@ -82,43 +79,15 @@ app.use('/api/tracking', require('./routes/tracking'));
 app.use('/api/reports', require('./routes/reports'));
 app.use('/api/accounting', require('./routes/accounting'));
 app.use('/api/utils', require('./routes/utils'));
-app.use('/api/telegram', require('./routes/telegram'));
+app.use('/api/notifications', require('./routes/notifications'));
 
 // Socket.io connection handling
 require('./socket/socketHandler')(io);
 
-// Health check endpoint
-app.get('/', (req, res) => {
-  res.json({ 
-    message: '52Express Transport API Server', 
-    status: 'running',
-    version: '1.0.0',
-    endpoints: {
-      auth: '/api/auth',
-      users: '/api/users',
-      orders: '/api/orders',
-      vehicles: '/api/vehicles',
-      tracking: '/api/tracking',
-      reports: '/api/reports',
-      accounting: '/api/accounting',
-      utils: '/api/utils',
-      telegram: '/api/telegram'
-    }
-  });
-});
-
-// Health check for Railway
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
-// Handle preflight OPTIONS requests
-app.options('*', (req, res) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-  res.sendStatus(200);
-});
+// Serve React app (временно отключено)
+// app.get('*', (req, res) => {
+//   res.sendFile(path.join(__dirname, 'web/build', 'index.html'));
+// });
 
 const PORT = process.env.PORT || 3000;
 

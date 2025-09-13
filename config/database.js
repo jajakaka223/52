@@ -1,40 +1,33 @@
 const { Pool } = require('pg');
 const { logger } = require('../utils/logger');
 
-// Prefer single connection string from Railway if provided
-const connectionString = process.env.DATABASE_URL || process.env.DATABASE_PUBLIC_URL;
 
-/**
- * Create PG pool. If DATABASE_URL/DATABASE_PUBLIC_URL is present (Railway), use it.
- * Otherwise use discrete DB_* vars for local/dev.
- */
-const pool = connectionString
-  ? new Pool({
-      connectionString,
-      // Public proxy URLs usually require SSL; internal service URL does not.
-      ssl: /proxy\.rlwy\.net/i.test(connectionString)
-        ? { rejectUnauthorized: false }
-        : undefined,
-      max: 20,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 10000,
-    })
-  : new Pool({
-      host: process.env.DB_HOST || 'localhost',
-      port: process.env.DB_PORT || 5432,
-      database: process.env.DB_NAME || 'transport_company',
-      user: process.env.DB_USER || 'postgres',
-      password: process.env.DB_PASSWORD || 'your_password',
-      max: 20,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 10000,
-    });
+
+const pool = new Pool({
+  host: process.env.DB_HOST || 'localhost',
+  port: process.env.DB_PORT || 5432,
+  database: process.env.DB_NAME || 'transport_company',
+  user: process.env.DB_USER || 'postgres',
+  password: process.env.DB_PASSWORD || 'your_password',
+  max: Number(process.env.DB_POOL_MAX || 30),
+  idleTimeoutMillis: Number(process.env.DB_IDLE_TIMEOUT_MS || 60000),
+  connectionTimeoutMillis: Number(process.env.DB_CONN_TIMEOUT_MS || 5000), 
+});
 
 // Функция создания таблиц
 const createTables = async () => {
   const client = await pool.connect();
   
   try {
+    // Таблица ролей
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS roles (
+        id SERIAL PRIMARY KEY,
+        key VARCHAR(50) UNIQUE NOT NULL,
+        title VARCHAR(100) NOT NULL
+      )
+    `);
+
     // Таблица пользователей
     await client.query(`
       CREATE TABLE IF NOT EXISTS users (
@@ -42,7 +35,7 @@ const createTables = async () => {
         username VARCHAR(50) UNIQUE NOT NULL,
         password VARCHAR(255) NOT NULL,
         full_name VARCHAR(100) NOT NULL,
-        role VARCHAR(20) NOT NULL DEFAULT 'driver',
+        role VARCHAR(50) NOT NULL DEFAULT 'driver',
         email VARCHAR(100),
         phone VARCHAR(20),
         is_active BOOLEAN DEFAULT true,
@@ -89,6 +82,69 @@ const createTables = async () => {
     // На случай существующей таблицы — добавляем недостающие колонки
     await client.query(`ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS mileage INTEGER`);
     await client.query(`ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS last_service_date DATE`);
+    // Гарантируем наличие всех новых колонок прав (для существующих БД)
+    const addFlag = async (name, def) => {
+      try { await client.query(`ALTER TABLE role_permissions ADD COLUMN IF NOT EXISTS ${name} BOOLEAN DEFAULT ${def}`); } catch (_) {}
+    };
+    await addFlag('can_view_dashboard_stats', 'true');
+    await addFlag('can_view_dashboard_users_count', 'true');
+    await addFlag('can_view_dashboard_vehicles_count', 'true');
+    await addFlag('can_view_dashboard_orders_count', 'true');
+    await addFlag('can_view_dashboard_completed_count', 'true');
+    await addFlag('can_view_dashboard_recent_orders', 'true');
+    await addFlag('can_view_dashboard_finances', 'true');
+    await addFlag('can_view_menu_budget', 'true');
+    await addFlag('can_view_menu_expenses', 'true');
+    await addFlag('can_view_menu_salary', 'true');
+    await addFlag('can_edit_salary', 'false');
+    await addFlag('can_view_menu_vehicles', 'true');
+    await addFlag('can_view_menu_maintenance', 'true');
+    await addFlag('can_view_menu_tracking', 'true');
+    await addFlag('can_view_menu_reports', 'true');
+    await addFlag('can_delete_any', 'false');
+    await addFlag('can_assign_drivers', 'false');
+    await addFlag('can_create_orders', 'false');
+    await addFlag('can_send_notifications', 'false');
+    await addFlag('can_view_notifications', 'true');
+
+    // Нормализуем NULL в true для роли admin (полный доступ)
+    try {
+      await client.query(`
+        UPDATE role_permissions SET 
+          can_view_dashboard = COALESCE(can_view_dashboard, true),
+          can_view_orders = COALESCE(can_view_orders, true),
+          can_edit_orders = COALESCE(can_edit_orders, true),
+          can_view_reports = COALESCE(can_view_reports, true),
+          can_edit_reports = COALESCE(can_edit_reports, true),
+          can_view_vehicles = COALESCE(can_view_vehicles, true),
+          can_edit_vehicles = COALESCE(can_edit_vehicles, true),
+          can_view_tracking = COALESCE(can_view_tracking, true),
+          can_edit_tracking = COALESCE(can_edit_tracking, true),
+          can_view_settings = COALESCE(can_view_settings, true),
+          can_edit_users = COALESCE(can_edit_users, true),
+          can_manage_roles = COALESCE(can_manage_roles, true),
+          can_view_dashboard_stats = COALESCE(can_view_dashboard_stats, true),
+          can_view_dashboard_users_count = COALESCE(can_view_dashboard_users_count, true),
+          can_view_dashboard_vehicles_count = COALESCE(can_view_dashboard_vehicles_count, true),
+          can_view_dashboard_orders_count = COALESCE(can_view_dashboard_orders_count, true),
+          can_view_dashboard_completed_count = COALESCE(can_view_dashboard_completed_count, true),
+          can_view_dashboard_recent_orders = COALESCE(can_view_dashboard_recent_orders, true),
+          can_view_dashboard_finances = COALESCE(can_view_dashboard_finances, true),
+          can_view_menu_budget = COALESCE(can_view_menu_budget, true),
+          can_view_menu_expenses = COALESCE(can_view_menu_expenses, true),
+          can_view_menu_salary = COALESCE(can_view_menu_salary, true),
+          can_edit_salary = COALESCE(can_edit_salary, true),
+          can_view_menu_vehicles = COALESCE(can_view_menu_vehicles, true),
+          can_view_menu_maintenance = COALESCE(can_view_menu_maintenance, true),
+          can_view_menu_tracking = COALESCE(can_view_menu_tracking, true),
+          can_view_menu_reports = COALESCE(can_view_menu_reports, true),
+          can_delete_any = COALESCE(can_delete_any, true),
+          can_assign_drivers = COALESCE(can_assign_drivers, true),
+          can_send_notifications = COALESCE(can_send_notifications, true),
+          can_view_notifications = COALESCE(can_view_notifications, true),
+        WHERE role_key = 'admin'
+      `);
+    } catch (_) {}
 
     // Таблица GPS координат
     await client.query(`
@@ -134,6 +190,98 @@ const createTables = async () => {
 
     // Создаем администратора по умолчанию
     await createDefaultAdmin(client);
+
+    // Сидинг ролей по умолчанию
+    await client.query(`INSERT INTO roles(key, title) VALUES ('admin','Администратор') ON CONFLICT (key) DO NOTHING`);
+    await client.query(`INSERT INTO roles(key, title) VALUES ('driver','Водитель') ON CONFLICT (key) DO NOTHING`);
+    
+    // Таблица прав ролей (флаги доступа)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS role_permissions (
+        id SERIAL PRIMARY KEY,
+        role_key VARCHAR(50) UNIQUE NOT NULL REFERENCES roles(key) ON DELETE CASCADE,
+        can_view_dashboard BOOLEAN DEFAULT true,
+        can_view_orders BOOLEAN DEFAULT true,
+        can_edit_orders BOOLEAN DEFAULT false,
+        can_view_reports BOOLEAN DEFAULT true,
+        can_edit_reports BOOLEAN DEFAULT false,
+        can_view_vehicles BOOLEAN DEFAULT true,
+        can_edit_vehicles BOOLEAN DEFAULT false,
+        can_view_tracking BOOLEAN DEFAULT true,
+        can_edit_tracking BOOLEAN DEFAULT false,
+        can_view_settings BOOLEAN DEFAULT false,
+        can_edit_users BOOLEAN DEFAULT false,
+        can_manage_roles BOOLEAN DEFAULT false,
+        can_view_dashboard_stats BOOLEAN DEFAULT true,
+        can_view_dashboard_users_count BOOLEAN DEFAULT true,
+        can_view_dashboard_vehicles_count BOOLEAN DEFAULT true,
+        can_view_dashboard_orders_count BOOLEAN DEFAULT true,
+        can_view_dashboard_completed_count BOOLEAN DEFAULT true,
+        can_view_dashboard_recent_orders BOOLEAN DEFAULT true,
+        can_view_dashboard_finances BOOLEAN DEFAULT true,
+        can_view_menu_budget BOOLEAN DEFAULT true,
+        can_view_menu_expenses BOOLEAN DEFAULT true,
+        can_view_menu_salary BOOLEAN DEFAULT true,
+        can_edit_salary BOOLEAN DEFAULT false,
+        can_view_menu_vehicles BOOLEAN DEFAULT true,
+        can_view_menu_maintenance BOOLEAN DEFAULT true,
+        can_view_menu_tracking BOOLEAN DEFAULT true,
+        can_view_menu_reports BOOLEAN DEFAULT true,
+        can_delete_any BOOLEAN DEFAULT false,
+        can_assign_drivers BOOLEAN DEFAULT false,
+        can_create_orders BOOLEAN DEFAULT false,
+        can_send_notifications BOOLEAN DEFAULT false,
+        can_view_notifications BOOLEAN DEFAULT true,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Таблица уведомлений
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS notifications (
+        id SERIAL PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        message TEXT NOT NULL,
+        recipient_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        sender_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        is_read BOOLEAN DEFAULT false,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+
+    // Сидинг прав по умолчанию для стандартных ролей
+    await client.query(`
+      INSERT INTO role_permissions (
+        role_key, can_view_dashboard, can_view_orders, can_edit_orders,
+        can_view_reports, can_edit_reports, can_view_vehicles, can_edit_vehicles,
+        can_view_tracking, can_edit_tracking, can_view_settings, can_edit_users, can_manage_roles,
+        can_view_dashboard_stats, can_view_dashboard_users_count, can_view_dashboard_vehicles_count,
+        can_view_dashboard_orders_count, can_view_dashboard_completed_count, can_view_dashboard_recent_orders,
+        can_view_dashboard_finances, can_view_menu_budget, can_view_menu_expenses, can_view_menu_salary,
+        can_edit_salary, can_view_menu_vehicles, can_view_menu_maintenance, can_view_menu_tracking,
+        can_view_menu_reports, can_delete_any, can_assign_drivers, can_create_orders, can_send_notifications, can_view_notifications
+      ) VALUES (
+        'admin', true, true, true, true, true, true, true, true, true, true, true, true,
+        true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true
+      ) ON CONFLICT (role_key) DO NOTHING
+    `);
+    await client.query(`
+      INSERT INTO role_permissions (
+        role_key, can_view_dashboard, can_view_orders, can_edit_orders,
+        can_view_reports, can_edit_reports, can_view_vehicles, can_edit_vehicles,
+        can_view_tracking, can_edit_tracking, can_view_settings, can_edit_users, can_manage_roles,
+        can_view_dashboard_stats, can_view_dashboard_users_count, can_view_dashboard_vehicles_count,
+        can_view_dashboard_orders_count, can_view_dashboard_completed_count, can_view_dashboard_recent_orders,
+        can_view_dashboard_finances, can_view_menu_budget, can_view_menu_expenses, can_view_menu_salary,
+        can_edit_salary, can_view_menu_vehicles, can_view_menu_maintenance, can_view_menu_tracking,
+        can_view_menu_reports, can_delete_any, can_assign_drivers, can_create_orders, can_send_notifications, can_view_notifications
+      ) VALUES (
+        'driver', true, true, false, false, false, true, false, true, false, false, false, false,
+        true, false, false, false, false, false, false, false, false, false, false, true, false, true, false, false, false, false, false, true
+      ) ON CONFLICT (role_key) DO NOTHING
+    `);
     
     logger.info('✅ Таблицы базы данных созданы успешно');
   } catch (error) {
@@ -144,34 +292,35 @@ const createTables = async () => {
 };
 
 const connectDB = async () => {
-  const redact = (str) => (str ? str.replace(/:(.*?)@/, ':***@') : '');
-  const isProxy = !!connectionString && /proxy\.rlwy\.net/i.test(connectionString);
-  let attempt = 0;
-
-  while (true) {
-    attempt += 1;
-    try {
-      logger.info(
-        `🗄️  Подключение к PostgreSQL (попытка ${attempt}) — ` +
-          (connectionString
-            ? `connectionString=${redact(connectionString)} ssl=${isProxy ? 'on' : 'off'}`
-            : `host=${process.env.DB_HOST || 'localhost'} db=${process.env.DB_NAME || 'transport_company'}`)
-      );
-
-      const client = await pool.connect();
-      logger.info('✅ База данных PostgreSQL подключена успешно');
-
-      // Создаем таблицы если их нет
-      await createTables();
-
-      client.release();
-      break; // успех, выходим из цикла
-    } catch (error) {
-      const delayMs = Math.min(30000, 1000 * Math.pow(2, Math.min(attempt, 5))); // эксп. бэкофф до 30с
-      logger.error(`❌ Ошибка подключения к базе данных (попытка ${attempt}): ${error.message}. Повтор через ${Math.round(delayMs/1000)}с`);
-      await new Promise((res) => setTimeout(res, delayMs));
-      // не завершаем процесс, продолжаем пытаться — Railway успеет поднять БД/сеть
-    }
+  try {
+    const client = await pool.connect();
+    logger.info('✅ База данных PostgreSQL подключена успешно');
+    
+    // Создаем таблицы если их нет
+    await createTables();
+    
+    client.release();
+  } catch (error) {
+    logger.error('❌ Ошибка подключения к базе данных:', error);
+    // Не падаем, а пытаемся реконнектиться с экспоненциальной задержкой
+    let attempt = 1;
+    const maxAttempts = 10;
+    const retry = async () => {
+      const delay = Math.min(30000, 1000 * Math.pow(2, attempt - 1));
+      logger.warn(`🔁 Попытка переподключения к БД #${attempt} через ${Math.round(delay/1000)}с`);
+      await new Promise(r => setTimeout(r, delay));
+      try {
+        const client = await pool.connect();
+        logger.info('✅ Восстановлено подключение к БД');
+        await createTables();
+        client.release();
+      } catch (e) {
+        attempt += 1;
+        if (attempt <= maxAttempts) return retry();
+        logger.error('❌ Не удалось восстановить подключение к БД после множества попыток');
+      }
+    };
+    retry();
   }
 };
 

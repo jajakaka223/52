@@ -122,5 +122,7 @@ module.exports = {
   requireAdmin,
   requireDriver,
   logRequest,
-  checkUserActive
+  checkUserActive,
+  logUserAction,
+  logError
 };

@@ -5,12 +5,11 @@ import { Card, Typography, DatePicker, message } from 'antd';
 import { ConfigProvider } from 'antd';
 import ruRU from 'antd/locale/ru_RU';
 import axios from 'axios';
-import { getApiUrl } from '../config/api';
 // Отказываемся от @ant-design/plots: рисуем собственный SVG-график
 
 const { Title } = Typography;
 
-const Reports = () => {
+const Reports = ({ theme }) => {
   const [data, setData] = useState([]);
   const [range, setRange] = useState(null);
 
@@ -20,7 +19,7 @@ const Reports = () => {
       const token = localStorage.getItem('auth_token');
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
       // Получаем почасовой/дневной ряд
-      const seriesRes = await axios.get(getApiUrl('/api/reports/orders-by-date', { params, headers });
+      const seriesRes = await axios.get('/api/reports/orders-by-date', { params, headers });
       const rows = Array.isArray(seriesRes.data?.report) ? seriesRes.data.report : [];
 
       // Строим полный список дат от start до end (включительно)
@@ -52,7 +51,7 @@ const Reports = () => {
 
       // Подтягиваем расходы из учёта и агрегируем по датам
       const accParams = start && end ? { startDate: start, endDate: end } : {};
-      const accRes = await axios.get(getApiUrl('/api/accounting', { params: accParams, headers });
+      const accRes = await axios.get('/api/accounting', { params: accParams, headers });
       const expenseByIso = (accRes.data?.records || [])
         .filter(r => Number(r.amount) < 0)
         .reduce((map, r) => {
@@ -105,17 +104,11 @@ const Reports = () => {
     };
   }, [data]);
 
-  const [isDark, setIsDark] = useState(typeof document !== 'undefined' && document.body?.getAttribute('data-theme') === 'dark');
+  const [isDark, setIsDark] = useState(false);
 
   useEffect(() => {
-    if (typeof MutationObserver === 'undefined') return;
-    const observer = new MutationObserver(() => {
-      const dark = document.body?.getAttribute('data-theme') === 'dark';
-      setIsDark(dark);
-    });
-    observer.observe(document.body, { attributes: true, attributeFilter: ['data-theme'] });
-    return () => observer.disconnect();
-  }, []);
+    setIsDark(theme === 'dark');
+  }, [theme]);
 
   // maxY больше не используется (отрисовка на SVG ниже имеет свой расчёт)
 
@@ -223,9 +216,13 @@ const Reports = () => {
     <ConfigProvider locale={ruRU}>
     <div>
       <Title level={2}>Отчеты и аналитика</Title>
-      <Card title="Доход, Расход и ожидаемая прибыль">
+      <Card 
+        title="Доход, Расход и ожидаемая прибыль" 
+        bodyStyle={{ background: isDark ? '#0f0f0f' : undefined }}
+        headStyle={{ background: isDark ? '#141414' : undefined, color: isDark ? '#fff' : undefined }}
+      >
         <DatePicker.RangePicker onChange={onChange} value={range} placeholder={["Выберите дату", "Выберите дату"]} format="DD.MM.YYYY" />
-        <div style={{ marginTop: 16 }}>
+        <div style={{ marginTop: 16, background: isDark ? '#0f0f0f' : undefined, padding: isDark ? '16px' : 0, borderRadius: isDark ? '8px' : 0 }}>
           <BarChart width={1100} height={380} />
         </div>
         <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>

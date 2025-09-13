@@ -3,7 +3,6 @@ import dayjs from 'dayjs';
 import { Card, Typography, Table, Button, Space, Tag, Form, Input, DatePicker, InputNumber, Select, message, Modal, Popconfirm, Checkbox } from 'antd';
 import { DeleteOutlined } from '@ant-design/icons';
 import axios from 'axios';
-import { getApiUrl } from '../config/api';
 
 const { Title } = Typography;
 const { Option } = Select;
@@ -39,7 +38,7 @@ function useAuthHeaders() {
   }, []);
 }
 
-const Orders = () => {
+const Orders = ({ theme, userPermissions }) => {
   const headers = useAuthHeaders();
   const [loading, setLoading] = useState(false);
   const [orders, setOrders] = useState([]);
@@ -51,7 +50,7 @@ const Orders = () => {
   const fetchOrders = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await axios.get(getApiUrl('/api/orders', { headers });
+      const res = await axios.get('/api/orders', { headers });
       setOrders(res.data?.orders || []);
     } catch (e) {
       message.error(e?.response?.data?.error || 'Не удалось загрузить заявки');
@@ -62,7 +61,7 @@ const Orders = () => {
 
   const fetchDrivers = useCallback(async () => {
     try {
-      const res = await axios.get(getApiUrl('/api/users', { headers });
+      const res = await axios.get('/api/users', { headers });
       const list = (res.data?.users || []).filter(u => u.role === 'driver' && u.is_active !== false);
       setDrivers(list);
     } catch (e) {
@@ -83,7 +82,7 @@ const Orders = () => {
       const found = orders.find(o => Number(o.id) === id);
       if (found) { setDetails(found); return; }
       try {
-        const { data } = await axios.get(getApiUrl('/api/orders/${id}`, { headers });
+        const { data } = await axios.get(`/api/orders/${id}`, { headers });
         if (data?.order) setDetails(data.order);
       } catch (_) {}
     };
@@ -125,12 +124,12 @@ const Orders = () => {
       // авторасстояние, если не заполнено
       if (!payload.distance && values.from && values.to) {
         try {
-          const dres = await axios.get(getApiUrl('/api/utils/distance', { params: { from: values.from, to: values.to } });
+          const dres = await axios.get('/api/utils/distance', { params: { from: values.from, to: values.to } });
           payload.distance = dres.data?.km || null;
         } catch (_) {}
       }
 
-      await axios.post(getApiUrl('/api/orders', payload, { headers });
+      await axios.post('/api/orders', payload, { headers });
       message.success('Заявка создана');
       createForm.resetFields();
       fetchOrders();
@@ -144,7 +143,7 @@ const Orders = () => {
 
   const handleAssign = async (driverId) => {
     try {
-      await axios.post(getApiUrl('/api/orders/${assignModal.orderId}/assign-driver`, { driverId }, { headers });
+      await axios.post(`/api/orders/${assignModal.orderId}/assign-driver`, { driverId }, { headers });
       message.success('Водитель назначен');
       setAssignModal({ open: false, orderId: null });
       fetchOrders();
@@ -153,10 +152,60 @@ const Orders = () => {
     }
   };
 
+  // Функция для обновления бюджета при изменении статуса заявки
+  const updateBudgetFromOrder = useCallback(async (orderId, newStatus) => {
+    if (newStatus !== 'completed') return;
+    
+    try {
+      // Получаем данные заявки
+      const order = orders.find(o => o.id === orderId);
+      if (!order || !order.amount) return;
+      
+      const amount = Number(order.amount);
+      if (amount <= 0) return;
+      
+      // Читаем текущие настройки бюджета
+      const DEFAULT_PERCENTS = { tax: 6, salary: 20, repair: 15, fuel: 14, safe: 5, profit: 40 };
+      const currentBalances = JSON.parse(localStorage.getItem('budget_balances_v1') || 'null') || { tax: 0, salary: 0, repair: 0, fuel: 0, safe: 0, profit: 0 };
+      const currentPercents = JSON.parse(localStorage.getItem('budget_percents_v1') || 'null') || DEFAULT_PERCENTS;
+      
+      // Распределяем сумму по категориям согласно процентам
+      const newBalances = { ...currentBalances };
+      Object.keys(currentPercents).forEach(key => {
+        const percent = Number(currentPercents[key] || 0);
+        const addAmount = Math.round((amount * percent / 100) * 100) / 100;
+        newBalances[key] = Math.round((Number(newBalances[key] || 0) + addAmount) * 100) / 100;
+      });
+      
+      // Сохраняем обновленные балансы
+      localStorage.setItem('budget_balances_v1', JSON.stringify(newBalances));
+      
+      // Добавляем запись в историю
+      const hist = JSON.parse(localStorage.getItem('budget_history_v1') || '[]');
+      const route = order.direction ? String(order.direction).split('\n')[0] : `Заявка #${orderId}`;
+      hist.unshift({
+        ts: Date.now(),
+        category: 'Выполненная заявка',
+        delta: amount,
+        comment: `Заявка #${orderId} "${route}" выполнена`
+      });
+      localStorage.setItem('budget_history_v1', JSON.stringify(hist.slice(0, 500)));
+      
+    } catch (e) {
+      console.error('Ошибка обновления бюджета:', e);
+    }
+  }, [orders]);
+
   const handleChangeStatus = async (status) => {
     try {
       await axios.patch(`/api/orders/${statusModal.orderId}/status`, { status }, { headers });
       message.success('Статус обновлён');
+      
+      // Обновляем бюджет если заявка выполнена
+      if (status === 'completed') {
+        await updateBudgetFromOrder(statusModal.orderId, status);
+      }
+      
       setStatusModal({ open: false, orderId: null });
       fetchOrders();
     } catch (e) {
@@ -178,7 +227,7 @@ const Orders = () => {
   const ensureYmapsLoaded = useCallback(async () => {
     // Загружаем JS SDK Яндекс.Карт по ключу из публичной конфигурации
     try {
-      const { data } = await axios.get(getApiUrl('/api/utils/public-config');
+      const { data } = await axios.get('/api/utils/public-config');
       const apiKey = data?.yandexKey;
       if (!apiKey) return false;
       await new Promise((resolve, reject) => {
@@ -358,7 +407,22 @@ const Orders = () => {
     },
     { 
       title: 'Статус', dataIndex: 'status', 
-      render: s => <Tag color={statusToColor[s] || 'default'}>{statusToRu[s] || statusToRu['new']}</Tag>,
+      render: s => {
+        const preset = statusToColor[s] || 'default';
+        const colorMap = { 
+          default: theme === 'dark' ? '#434343' : '#d9d9d9', 
+          processing: '#1890ff',
+          warning: '#faad14',
+          success: '#52c41a',
+          error: '#ff4d4f'
+        };
+        const bg = s === 'new' ? '#434343' : (colorMap[preset] || (theme === 'dark' ? '#434343' : '#d9d9d9'));
+        return (
+          <Tag style={{ background: bg, color: '#fff', border: `1px solid ${bg}`, fontWeight: 500 }}>
+            {statusToRu[s] || statusToRu['new']}
+          </Tag>
+        );
+      },
       sorter: (a, b) => (statusRank[a.status]||0) - (statusRank[b.status]||0),
       sortDirections: ['descend','ascend']
     },
@@ -366,20 +430,24 @@ const Orders = () => {
       title: <div style={{ textAlign: 'center' }}>Действия</div>,
       render: (_, r) => (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, auto)', gap: 8 }}>
-          <Button size="small" onClick={() => openAssign(r.id)}>Назначить</Button>
+          {userPermissions?.can_assign_drivers && (
+            <Button size="small" onClick={() => openAssign(r.id)}>Назначить</Button>
+          )}
           <Button size="small" onClick={() => openStatus(r.id)}>Статус</Button>
           <Button size="small" onClick={() => setDetails(r)}>Подробнее</Button>
-          <Popconfirm title="Удалить заявку?" okText="Удалить" cancelText="Отмена" onConfirm={async () => {
-            try {
-              await axios.delete(getApiUrl('/api/orders/${r.id}`, { headers });
-              message.success('Заявка удалена');
-              fetchOrders();
-            } catch (e) {
-              message.error(e?.response?.data?.error || 'Не удалось удалить заявку');
-            }
-          }}>
-            <Button danger size="small" icon={<DeleteOutlined />} />
-          </Popconfirm>
+          {userPermissions?.can_delete_any && (
+            <Popconfirm title="Удалить заявку?" okText="Удалить" cancelText="Отмена" onConfirm={async () => {
+              try {
+                await axios.delete(`/api/orders/${r.id}`, { headers });
+                message.success('Заявка удалена');
+                fetchOrders();
+              } catch (e) {
+                message.error(e?.response?.data?.error || 'Не удалось удалить заявку');
+              }
+            }}>
+              <Button danger size="small" icon={<DeleteOutlined />} />
+            </Popconfirm>
+          )}
         </div>
       )
     }
@@ -394,78 +462,124 @@ const Orders = () => {
 
   return (
     <div>
+      <style>{`
+        [data-theme="dark"] .ant-table-tbody > tr:hover > td {
+          background: #1f1f1f !important;
+          border-color: #303030 !important;
+        }
+        [data-theme="dark"] .ant-table-tbody > tr.ant-table-row:hover > td {
+          background: #1f1f1f !important;
+          border-color: #303030 !important;
+        }
+        [data-theme="dark"] .ant-table-tbody > tr.ant-table-row-selected:hover > td {
+          background: #1f1f1f !important;
+          border-color: #303030 !important;
+        }
+        [data-theme="dark"] .ant-table-tbody > tr.ant-table-row-selected > td {
+          background: #1f1f1f !important;
+          border-color: #303030 !important;
+        }
+        [data-theme="dark"] .ant-table-tbody > tr > td {
+          border-color: #303030 !important;
+        }
+        [data-theme="dark"] .ant-table-thead > tr > th {
+          border-color: #303030 !important;
+          background: #141414 !important;
+        }
+        [data-theme="dark"] .ant-table-tbody > tr > td.ant-table-cell-row-hover {
+          background: #1f1f1f !important;
+          border-color: #303030 !important;
+        }
+        .ant-input::placeholder {
+          color: #8c8c8c !important;
+        }
+        .ant-input:focus::placeholder {
+          color: #8c8c8c !important;
+        }
+        .ant-input-textarea::placeholder {
+          color: #8c8c8c !important;
+        }
+        .ant-input-textarea:focus::placeholder {
+          color: #8c8c8c !important;
+        }
+        .ant-select-selection-placeholder {
+          color: #8c8c8c !important;
+        }
+      `}</style>
       <Title level={2}>Управление заявками</Title>
 
-      <Card style={{ marginBottom: 16 }} title="Создать заявку">
-        <Form layout="vertical" form={createForm} onFinish={handleCreate}>
-          <Space size={16} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-            <Form.Item name="date" label="Дата" rules={[{ required: true, message: 'Укажите дату' }]}> 
-              <DatePicker format="DD.MM.YYYY" placeholder="Выберите дату" />
-            </Form.Item>
-            <Form.Item name="from" label="Откуда" rules={[{ required: true, message: 'Укажите точку отправления' }]}>
-              <Input style={{ width: 180 }} />
-            </Form.Item>
-            <Form.Item name="to" label="Куда" rules={[{ required: true, message: 'Укажите точку назначения' }]}>
-              <Input style={{ width: 200 }} />
-            </Form.Item>
-            <Form.Item name="loadAddress" label="Адрес загрузки" rules={[{ required: true, message: 'Укажите адрес загрузки' }]}>
-              <Input style={{ width: 240 }} />
-            </Form.Item>
-            <Form.Item name="loadCompany" label="Компания на загрузке" rules={[{ required: true, message: 'Укажите компанию на загрузке' }]}>
-              <Input style={{ width: 220 }} />
-            </Form.Item>
-            <Form.Item name="loadPhone" label="Телефон загрузки">
-              <Input style={{ width: 160 }} />
-            </Form.Item>
-            <Form.Item name="unloadAddress" label="Адрес разгрузки" rules={[{ required: true, message: 'Укажите адрес разгрузки' }]}>
-              <Input style={{ width: 240 }} />
-            </Form.Item>
-            <Form.Item name="unloadCompany" label="Компания на разгрузке" rules={[{ required: true, message: 'Укажите компанию на разгрузке' }]}>
-              <Input style={{ width: 220 }} />
-            </Form.Item>
-            <Form.Item name="unloadPhone" label="Телефон разгрузки">
-              <Input style={{ width: 160 }} />
-            </Form.Item>
-            <Form.Item name="company" label="Компания по заявке" rules={[{ required: true, message: 'Укажите компанию по заявке' }]}>
-              <Input style={{ width: 200 }} />
-            </Form.Item>
-            <Form.Item name="clientName" label="Имя" rules={[{ required: true, message: 'Укажите имя' }]}> 
-              <Input style={{ width: 160 }} />
-            </Form.Item>
-            <Form.Item name="phone" label="Телефон">
-              <Input style={{ width: 160 }} />
-            </Form.Item>
-            <Form.Item name="email" label="Email">
-              <Input style={{ width: 220 }} />
-            </Form.Item>
-            <Form.Item name="comment" label="Комментарий">
-              <Input.TextArea style={{ width: 320 }} rows={1} />
-            </Form.Item>
-            {/* Расстояние вычисляется автоматически */}
-            <Form.Item name="weight" label="Вес">
-              <InputNumber min={0} step={0.1} style={{ width: 120 }} />
-            </Form.Item>
-            <Form.Item name="amount" label="Сумма">
-              <InputNumber min={0} style={{ width: 140 }} />
-            </Form.Item>
-            <Form.Item name="driverId" label="Водитель">
-              <Select allowClear placeholder="Не назначать" style={{ width: 220 }}>
-                {drivers.map(d => (
-                  <Option key={d.id} value={d.id}>{d.full_name || d.username}</Option>
-                ))}
-              </Select>
-            </Form.Item>
-            <Form.Item>
-              <Button type="primary" htmlType="submit">Создать</Button>
-            </Form.Item>
-          </Space>
-        </Form>
-      </Card>
+      {userPermissions?.can_create_orders && (
+        <Card style={{ marginBottom: 16 }} title="Создать заявку">
+          <Form layout="vertical" form={createForm} onFinish={handleCreate}>
+            <Space size={16} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+              <Form.Item name="date" label="Дата" rules={[{ required: true, message: 'Укажите дату' }]}> 
+                <DatePicker format="DD.MM.YYYY" placeholder="Выбрать дату" />
+              </Form.Item>
+              <Form.Item name="from" label="Откуда" rules={[{ required: true, message: 'Укажите точку отправления' }]}>
+                <Input style={{ width: 180 }} />
+              </Form.Item>
+              <Form.Item name="to" label="Куда" rules={[{ required: true, message: 'Укажите точку назначения' }]}>
+                <Input style={{ width: 200 }} />
+              </Form.Item>
+              <Form.Item name="loadAddress" label="Адрес загрузки" rules={[{ required: true, message: 'Укажите адрес загрузки' }]}>
+                <Input style={{ width: 240 }} />
+              </Form.Item>
+              <Form.Item name="loadCompany" label="Компания на загрузке" rules={[{ required: true, message: 'Укажите компанию на загрузке' }]}>
+                <Input style={{ width: 220 }} />
+              </Form.Item>
+              <Form.Item name="loadPhone" label="Телефон загрузки">
+                <Input style={{ width: 160 }} />
+              </Form.Item>
+              <Form.Item name="unloadAddress" label="Адрес разгрузки" rules={[{ required: true, message: 'Укажите адрес разгрузки' }]}>
+                <Input style={{ width: 240 }} />
+              </Form.Item>
+              <Form.Item name="unloadCompany" label="Компания на разгрузке" rules={[{ required: true, message: 'Укажите компанию на разгрузке' }]}>
+                <Input style={{ width: 220 }} />
+              </Form.Item>
+              <Form.Item name="unloadPhone" label="Телефон разгрузки">
+                <Input style={{ width: 160 }} />
+              </Form.Item>
+              <Form.Item name="company" label="Компания по заявке" rules={[{ required: true, message: 'Укажите компанию по заявке' }]}>
+                <Input style={{ width: 200 }} />
+              </Form.Item>
+              <Form.Item name="clientName" label="Имя" rules={[{ required: true, message: 'Укажите имя' }]}> 
+                <Input style={{ width: 160 }} />
+              </Form.Item>
+              <Form.Item name="phone" label="Телефон">
+                <Input style={{ width: 160 }} />
+              </Form.Item>
+              <Form.Item name="email" label="Email">
+                <Input style={{ width: 220 }} />
+              </Form.Item>
+              <Form.Item name="comment" label="Комментарий">
+                <Input.TextArea style={{ width: 320 }} rows={1} />
+              </Form.Item>
+              {/* Расстояние вычисляется автоматически */}
+              <Form.Item name="weight" label="Вес">
+                <InputNumber min={0} step={0.1} style={{ width: 120 }} />
+              </Form.Item>
+              <Form.Item name="amount" label="Сумма">
+                <InputNumber min={0} style={{ width: 140 }} />
+              </Form.Item>
+              <Form.Item name="driverId" label="Водитель">
+                <Select allowClear placeholder="Не назначать" style={{ width: 220 }}>
+                  {drivers.map(d => (
+                    <Option key={d.id} value={d.id}>{d.full_name || d.username}</Option>
+                  ))}
+                </Select>
+              </Form.Item>
+              <Form.Item>
+                <Button type="primary" htmlType="submit">Создать</Button>
+              </Form.Item>
+            </Space>
+          </Form>
+        </Card>
+      )}
 
       <Card title="Заявки" style={{ width: '100%' }}>
         <div style={{ marginBottom: 12 }}>
           <Space size={12} wrap>
-            <span style={{ opacity: 0.8, color: (typeof document !== 'undefined' && document.body?.getAttribute('data-theme') === 'dark') ? '#fff' : undefined }}>Показывать статусы:</span>
+            <span style={{ opacity: 0.9, color: (typeof document !== 'undefined' && document.body?.getAttribute('data-theme') === 'dark') ? '#fff' : undefined }}>Показывать статусы:</span>
             {allStatuses.map((s) => (
               <Checkbox
                 key={s}
@@ -480,7 +594,7 @@ const Orders = () => {
                 }}
                 style={{ color: (typeof document !== 'undefined' && document.body?.getAttribute('data-theme') === 'dark') ? '#fff' : undefined }}
               >
-                {statusToRu[s]}
+                <span style={{ color: (typeof document !== 'undefined' && document.body?.getAttribute('data-theme') === 'dark') ? '#fff' : undefined }}>{statusToRu[s]}</span>
               </Checkbox>
             ))}
           </Space>
@@ -606,15 +720,15 @@ const Orders = () => {
             // при изменении адресов можем пересчитать расстояние
             try {
               if (from && to) {
-                const dres = await axios.get(getApiUrl('/api/utils/distance', { params: { from, to } });
+                const dres = await axios.get('/api/utils/distance', { params: { from, to } });
                 payload.distance = dres.data?.km || null;
               }
             } catch (_) {}
-            await axios.put(getApiUrl('/api/orders/${details.id}`, payload, { headers });
+            await axios.put(`/api/orders/${details.id}`, payload, { headers });
             message.success('Заявка обновлена');
             setEditVisible(false);
             fetchOrders();
-            const r = await axios.get(getApiUrl('/api/orders/${details.id}`, { headers });
+            const r = await axios.get(`/api/orders/${details.id}`, { headers });
             setDetails(r.data?.order || null);
           } catch (e) {
             message.error(e?.response?.data?.error || 'Не удалось обновить заявку');
@@ -622,7 +736,7 @@ const Orders = () => {
         }}>
           <Space size={16} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end' }}>
             <Form.Item name="date" label="Дата" rules={[{ required: true, message: 'Укажите дату' }]}> 
-              <DatePicker format="DD.MM.YYYY" placeholder="Выберите дату" />
+              <DatePicker format="DD.MM.YYYY" placeholder="Выбрать дату" />
             </Form.Item>
             <Form.Item name="from" label="Откуда" rules={[{ required: true, message: 'Укажите точку отправления' }]}>
               <Input style={{ width: 180 }} />
@@ -710,10 +824,10 @@ const Orders = () => {
         destroyOnClose
       >
         <Select
-          key={statusModal.orderId}
           placeholder="Выберите статус"
           style={{ width: '100%' }}
           onChange={handleChangeStatus}
+          key={statusModal.orderId || 'status'}
         >
           <Option value="new">Новая</Option>
           <Option value="assigned">Назначена</Option>
