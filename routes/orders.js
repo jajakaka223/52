@@ -97,7 +97,6 @@ router.post('/', requireAdmin, async (req, res) => {
     const {
       date,
       direction,
-      distance,
       weight,
       amount,
       company,
@@ -115,10 +114,10 @@ router.post('/', requireAdmin, async (req, res) => {
     }
 
     const result = await pool.query(
-      `INSERT INTO orders (date, direction, distance, weight, amount, company, client_name, phone, email, driver_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      `INSERT INTO orders (date, direction, weight, amount, company, client_name, phone, email, driver_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING *`,
-      [date, direction, distance, weight, amount, company, clientName, phone, email, driverId]
+      [date, direction, weight, amount, company, clientName, phone, email, driverId]
     );
 
     // Логируем создание заявки
@@ -163,7 +162,7 @@ router.put('/:id', async (req, res) => {
     }
 
     // Формируем запрос на обновление
-    const allowedFields = ['date', 'direction', 'distance', 'weight', 'amount', 'company', 'client_name', 'phone', 'email', 'status', 'driver_id'];
+    const allowedFields = ['date', 'direction', 'weight', 'amount', 'company', 'client_name', 'phone', 'email', 'status', 'driver_id'];
     const updates = [];
     const values = [];
     let paramCount = 1;

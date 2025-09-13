@@ -121,19 +121,7 @@ const Orders = ({ theme, userPermissions }) => {
         email: values.email || null,
         driverId: values.driverId || null
       };
-      // авторасстояние, если не заполнено
-      if (!payload.distance && values.from && values.to) {
-        try {
-          const dres = await api.get('/api/utils/distance', { params: { from: values.from, to: values.to } });
-          payload.distance = dres.data?.km || null;
-          if (dres.data?.note) {
-            console.log('ℹ️', dres.data.note);
-          }
-        } catch (error) {
-          console.warn('Не удалось рассчитать расстояние:', error?.response?.data?.error || error.message);
-          // Продолжаем создание заявки без расстояния
-        }
-      }
+      // Расстояние заполняется вручную пользователем
 
       await api.post('/api/orders', payload, { headers });
       message.success('Заявка создана');
@@ -560,7 +548,6 @@ const Orders = ({ theme, userPermissions }) => {
               <Form.Item name="comment" label="Комментарий">
                 <Input.TextArea style={{ width: 320 }} rows={1} />
               </Form.Item>
-              {/* Расстояние вычисляется автоматически */}
               <Form.Item name="weight" label="Вес">
                 <InputNumber min={0} step={0.1} style={{ width: 120 }} />
               </Form.Item>
@@ -723,19 +710,7 @@ const Orders = ({ theme, userPermissions }) => {
               weight: vals.weight ?? null,
               driver_id: vals.driverId || null
             };
-            // при изменении адресов можем пересчитать расстояние
-            try {
-              if (from && to) {
-                const dres = await api.get('/api/utils/distance', { params: { from, to } });
-                payload.distance = dres.data?.km || null;
-                if (dres.data?.note) {
-                  console.log('ℹ️', dres.data.note);
-                }
-              }
-            } catch (error) {
-              console.warn('Не удалось рассчитать расстояние при редактировании:', error?.response?.data?.error || error.message);
-              // Продолжаем обновление заявки без изменения расстояния
-            }
+            // Расстояние редактируется вручную пользователем
             await api.put(`/api/orders/${details.id}`, payload, { headers });
             message.success('Заявка обновлена');
             setEditVisible(false);
