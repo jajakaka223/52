@@ -17,7 +17,30 @@ const Tracking = () => {
       const { data } = await api.get('/api/utils/public-config');
       const apiKey = data?.yandexKey;
       if (!apiKey) {
-        message.error('YANDEX_MAPS_API_KEY не настроен');
+        message.warning('Yandex Maps API ключ не настроен. Отображается заглушка карты.');
+        // Показываем заглушку вместо карты
+        if (mapRef.current) {
+          mapRef.current.innerHTML = `
+            <div style="
+              height: 400px; 
+              width: 100%; 
+              background: #f5f5f5; 
+              display: flex; 
+              align-items: center; 
+              justify-content: center; 
+              border: 2px dashed #d9d9d9;
+              color: #666;
+              font-size: 16px;
+              text-align: center;
+            ">
+              <div>
+                <div style="font-size: 24px; margin-bottom: 10px;">🗺️</div>
+                <div>Карта недоступна</div>
+                <div style="font-size: 12px; margin-top: 5px;">Настройте YANDEX_MAPS_API_KEY в Railway</div>
+              </div>
+            </div>
+          `;
+        }
         return;
       }
 
