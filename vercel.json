@@ -1,18 +1,12 @@
 {
   "version": 2,
-  "builds": [
+  "buildCommand": "cd web && npm install && npm run build",
+  "outputDirectory": "web/build",
+  "framework": "create-react-app",
+  "rewrites": [
     {
-      "src": "web/package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "build"
-      }
-    }
-  ],
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "/index.html"
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }
