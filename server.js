@@ -33,19 +33,54 @@ const rateLimit = require('express-rate-limit');
 
 const app = express();
 const server = http.createServer(app);
+// CORS настройки для поддержки Vercel домена
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Разрешаем запросы без origin (например, мобильные приложения)
+    if (!origin) return callback(null, true);
+    
+    // Разрешаем Vercel домен с слэшем и без
+    const allowedOrigins = [
+      'https://52-tau.vercel.app',
+      'https://52-tau.vercel.app/',
+      'http://localhost:3000',
+      'http://localhost:3001'
+    ];
+    
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    
+    // Для разработки разрешаем все
+    if (process.env.NODE_ENV === 'development') {
+      return callback(null, true);
+    }
+    
+    callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+};
+
 const io = socketIo(server, {
-  cors: {
-    origin: process.env.FRONTEND_URL || "*",
-    methods: ["GET", "POST"]
-  }
+  cors: corsOptions
 });
 
 // Middleware
 app.use(helmet());
-app.use(cors({
-  origin: process.env.FRONTEND_URL || "*",
-  credentials: true
-}));
+
+// CORS middleware с отладкой
+app.use((req, res, next) => {
+  console.log('🌐 CORS Request:', {
+    origin: req.headers.origin,
+    method: req.method,
+    url: req.url
+  });
+  next();
+});
+
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
