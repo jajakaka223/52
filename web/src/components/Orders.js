@@ -126,7 +126,13 @@ const Orders = ({ theme, userPermissions }) => {
         try {
           const dres = await api.get('/api/utils/distance', { params: { from: values.from, to: values.to } });
           payload.distance = dres.data?.km || null;
-        } catch (_) {}
+          if (dres.data?.note) {
+            console.log('ℹ️', dres.data.note);
+          }
+        } catch (error) {
+          console.warn('Не удалось рассчитать расстояние:', error?.response?.data?.error || error.message);
+          // Продолжаем создание заявки без расстояния
+        }
       }
 
       await api.post('/api/orders', payload, { headers });
@@ -722,8 +728,14 @@ const Orders = ({ theme, userPermissions }) => {
               if (from && to) {
                 const dres = await api.get('/api/utils/distance', { params: { from, to } });
                 payload.distance = dres.data?.km || null;
+                if (dres.data?.note) {
+                  console.log('ℹ️', dres.data.note);
+                }
               }
-            } catch (_) {}
+            } catch (error) {
+              console.warn('Не удалось рассчитать расстояние при редактировании:', error?.response?.data?.error || error.message);
+              // Продолжаем обновление заявки без изменения расстояния
+            }
             await api.put(`/api/orders/${details.id}`, payload, { headers });
             message.success('Заявка обновлена');
             setEditVisible(false);
