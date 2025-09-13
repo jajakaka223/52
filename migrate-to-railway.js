@@ -15,7 +15,7 @@ const localConfig = {
   port: 5432,
   database: 'transport_company',
   user: 'postgres',
-  password: 'your_password' // Замените на ваш пароль
+  password: 'admin' // Попробуйте стандартные пароли
 };
 
 // Конфигурация Railway (из переменных окружения)

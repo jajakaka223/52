@@ -1,8 +1,8 @@
 // API configuration
 const isDevelopment = process.env.NODE_ENV === 'development';
-const API_BASE_URL = isDevelopment 
-  ? 'http://localhost:3000' 
-  : 'https://web-production-7cfec.up.railway.app'; // Принудительно используем Railway URL
+const API_BASE_URL = isDevelopment
+  ? 'http://localhost:3000'
+  : 'https://web-production-7cfec.up.railway.app'; // Railway URL
 
 // Helper function to create full API URL
 export const getApiUrl = (endpoint) => {
