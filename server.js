@@ -1,33 +1,28 @@
-// Загружаем переменные окружения ПЕРЕД всеми импортами
-const fs = require('fs');
-const path = require('path');
+// Загружаем переменные окружения
+require('dotenv').config();
 
-// Простая загрузка .env файла
-const envPath = path.join(__dirname, '.env');
-console.log('🔍 Путь к .env файлу:', envPath);
-console.log('🔍 Файл .env существует:', fs.existsSync(envPath));
+// Настройка переменных окружения для Railway
+const dbConfig = {
+  host: process.env.DB_HOST || process.env.DATABASE_URL ? new URL(process.env.DATABASE_URL).hostname : 'localhost',
+  port: process.env.DB_PORT || process.env.DATABASE_URL ? new URL(process.env.DATABASE_URL).port : 5432,
+  database: process.env.DB_NAME || process.env.DATABASE_URL ? new URL(process.env.DATABASE_URL).pathname.slice(1) : 'transport_company',
+  user: process.env.DB_USER || process.env.DATABASE_URL ? new URL(process.env.DATABASE_URL).username : 'postgres',
+  password: process.env.DB_PASSWORD || process.env.DATABASE_URL ? new URL(process.env.DATABASE_URL).password : 'your_password'
+};
 
-if (fs.existsSync(envPath)) {
-  const envContent = fs.readFileSync(envPath, 'utf8');
-  console.log('🔍 Содержимое .env файла:');
-  console.log(envContent);
+// Устанавливаем переменные для database.js
+process.env.DB_HOST = dbConfig.host;
+process.env.DB_PORT = dbConfig.port;
+process.env.DB_NAME = dbConfig.database;
+process.env.DB_USER = dbConfig.user;
+process.env.DB_PASSWORD = dbConfig.password;
 
-  envContent.split('\n').forEach(line => {
-    const [key, ...valueParts] = line.split('=');
-    if (key && !key.startsWith('#') && valueParts.length > 0) {
-      const value = valueParts.join('=').trim();
-      process.env[key.trim()] = value;
-      console.log(`🔍 Установлена переменная: ${key.trim()} = ${value}`);
-    }
-  });
-}
-
-console.log('🔍 Проверка переменных окружения после загрузки:');
-console.log('   DB_HOST:', process.env.DB_HOST);
-console.log('   DB_PORT:', process.env.DB_PORT);
-console.log('   DB_NAME:', process.env.DB_NAME);
-console.log('   DB_USER:', process.env.DB_USER);
-console.log('   DB_PASSWORD:', process.env.DB_PASSWORD ? '***' : 'не задан');
+console.log('🔍 Конфигурация базы данных:');
+console.log('   DB_HOST:', dbConfig.host);
+console.log('   DB_PORT:', dbConfig.port);
+console.log('   DB_NAME:', dbConfig.database);
+console.log('   DB_USER:', dbConfig.user);
+console.log('   DB_PASSWORD:', dbConfig.password ? '***' : 'не задан');
 
 const express = require('express');
 const http = require('http');
@@ -40,14 +35,17 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
-    origin: "*",
+    origin: process.env.FRONTEND_URL || "*",
     methods: ["GET", "POST"]
   }
 });
 
 // Middleware
 app.use(helmet());
-app.use(cors());
+app.use(cors({
+  origin: process.env.FRONTEND_URL || "*",
+  credentials: true
+}));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 

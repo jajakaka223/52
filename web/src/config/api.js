@@ -1,9 +1,14 @@
 // API configuration
-export const API_BASE_URL = ''; // Use relative URLs for Vercel API functions
+const isDevelopment = process.env.NODE_ENV === 'development';
+const API_BASE_URL = isDevelopment 
+  ? 'http://localhost:3000' 
+  : process.env.REACT_APP_API_URL || 'https://your-railway-app.railway.app';
 
 // Helper function to create full API URL
 export const getApiUrl = (endpoint) => {
   // Remove leading slash if present
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
-  return `/${cleanEndpoint}`;
+  return `${API_BASE_URL}/${cleanEndpoint}`;
 };
+
+export { API_BASE_URL };
