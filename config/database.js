@@ -1,21 +1,44 @@
 const { Pool } = require('pg');
 const { logger } = require('../utils/logger');
 
+// Парсим DATABASE_URL от Railway
+let dbConfig = {};
 
-
-console.log('🔍 Database configuration:');
-console.log('   DB_HOST:', process.env.DB_HOST || 'localhost');
-console.log('   DB_PORT:', process.env.DB_PORT || 5432);
-console.log('   DB_NAME:', process.env.DB_NAME || 'transport_company');
-console.log('   DB_USER:', process.env.DB_USER || 'postgres');
-console.log('   DB_PASSWORD:', process.env.DB_PASSWORD ? '***' : 'не задан');
+if (process.env.DATABASE_URL) {
+  // Railway предоставляет DATABASE_URL в формате: postgresql://user:password@host:port/database
+  const url = new URL(process.env.DATABASE_URL);
+  dbConfig = {
+    host: url.hostname,
+    port: parseInt(url.port) || 5432,
+    database: url.pathname.slice(1), // убираем первый слеш
+    user: url.username,
+    password: url.password,
+  };
+  console.log('🔍 Database configuration from DATABASE_URL:');
+  console.log('   DB_HOST:', dbConfig.host);
+  console.log('   DB_PORT:', dbConfig.port);
+  console.log('   DB_NAME:', dbConfig.database);
+  console.log('   DB_USER:', dbConfig.user);
+  console.log('   DB_PASSWORD:', dbConfig.password ? '***' : 'не задан');
+} else {
+  // Fallback на отдельные переменные окружения
+  dbConfig = {
+    host: process.env.DB_HOST || 'localhost',
+    port: process.env.DB_PORT || 5432,
+    database: process.env.DB_NAME || 'transport_company',
+    user: process.env.DB_USER || 'postgres',
+    password: process.env.DB_PASSWORD || 'your_password',
+  };
+  console.log('🔍 Database configuration from individual env vars:');
+  console.log('   DB_HOST:', dbConfig.host);
+  console.log('   DB_PORT:', dbConfig.port);
+  console.log('   DB_NAME:', dbConfig.database);
+  console.log('   DB_USER:', dbConfig.user);
+  console.log('   DB_PASSWORD:', dbConfig.password ? '***' : 'не задан');
+}
 
 const pool = new Pool({
-  host: process.env.DB_HOST || 'localhost',
-  port: process.env.DB_PORT || 5432,
-  database: process.env.DB_NAME || 'transport_company',
-  user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || 'your_password',
+  ...dbConfig,
   max: Number(process.env.DB_POOL_MAX || 30),
   idleTimeoutMillis: Number(process.env.DB_IDLE_TIMEOUT_MS || 60000),
   connectionTimeoutMillis: Number(process.env.DB_CONN_TIMEOUT_MS || 5000), 
