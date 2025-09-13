@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import dayjs from 'dayjs';
 import { Card, Row, Col, Statistic, Typography, List, Tag } from 'antd';
-import axios from 'axios';
+import api from '../config/http';
 import { UserOutlined, CarOutlined, FileTextOutlined, CheckCircleOutlined } from '@ant-design/icons';
 
 const { Title } = Typography;
@@ -43,9 +43,9 @@ const Dashboard = ({ user, theme, userPermissions }) => {
         const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
         const [usersRes, vehiclesRes, ordersRes] = await Promise.all([
-          axios.get('/api/users/stats/overview', { headers }),
-          axios.get('/api/vehicles/stats/overview', { headers }),
-          axios.get('/api/reports/overview', { headers }),
+          api.get('/api/users/stats/overview', { headers }),
+          api.get('/api/vehicles/stats/overview', { headers }),
+          api.get('/api/reports/overview', { headers }),
         ]);
 
         setStats({
@@ -67,7 +67,7 @@ const Dashboard = ({ user, theme, userPermissions }) => {
       try {
         const token = localStorage.getItem('auth_token');
         const headers = token ? { Authorization: `Bearer ${token}` } : {};
-        const res = await axios.get('/api/orders', { headers });
+        const res = await api.get('/api/orders', { headers });
         const orders = Array.isArray(res.data?.orders) ? res.data.orders : [];
         const short = orders
           .slice(0, 10)
@@ -98,7 +98,7 @@ const Dashboard = ({ user, theme, userPermissions }) => {
         // Подтянем расходы из учёта
         let expense = 0;
         try {
-          const accRes = await axios.get('/api/accounting', {
+          const accRes = await api.get('/api/accounting', {
             headers,
             params: { startDate: start.format('YYYY-MM-DD'), endDate: end.format('YYYY-MM-DD') }
           });

@@ -4,7 +4,7 @@ import 'dayjs/locale/ru';
 import { Card, Typography, DatePicker, message } from 'antd';
 import { ConfigProvider } from 'antd';
 import ruRU from 'antd/locale/ru_RU';
-import axios from 'axios';
+import api from '../config/http';
 // Отказываемся от @ant-design/plots: рисуем собственный SVG-график
 
 const { Title } = Typography;
@@ -19,7 +19,7 @@ const Reports = ({ theme }) => {
       const token = localStorage.getItem('auth_token');
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
       // Получаем почасовой/дневной ряд
-      const seriesRes = await axios.get('/api/reports/orders-by-date', { params, headers });
+      const seriesRes = await api.get('/api/reports/orders-by-date', { params, headers });
       const rows = Array.isArray(seriesRes.data?.report) ? seriesRes.data.report : [];
 
       // Строим полный список дат от start до end (включительно)
@@ -51,7 +51,7 @@ const Reports = ({ theme }) => {
 
       // Подтягиваем расходы из учёта и агрегируем по датам
       const accParams = start && end ? { startDate: start, endDate: end } : {};
-      const accRes = await axios.get('/api/accounting', { params: accParams, headers });
+      const accRes = await api.get('/api/accounting', { params: accParams, headers });
       const expenseByIso = (accRes.data?.records || [])
         .filter(r => Number(r.amount) < 0)
         .reduce((map, r) => {
