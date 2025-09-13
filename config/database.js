@@ -1,11 +1,20 @@
 const { Pool } = require('pg');
 const { logger } = require('../utils/logger');
 
-// Парсим DATABASE_URL от Railway
+// Парсим конфигурацию базы данных от Railway
+console.log('🔍 Available environment variables:');
+console.log('   DATABASE_URL:', process.env.DATABASE_URL ? 'present' : 'not set');
+console.log('   PGHOST:', process.env.PGHOST || 'not set');
+console.log('   PGPORT:', process.env.PGPORT || 'not set');
+console.log('   PGDATABASE:', process.env.PGDATABASE || 'not set');
+console.log('   PGUSER:', process.env.PGUSER || 'not set');
+console.log('   PGPASSWORD:', process.env.PGPASSWORD ? '***' : 'not set');
+
 let dbConfig = {};
 
-if (process.env.DATABASE_URL) {
-  // Railway предоставляет DATABASE_URL в формате: postgresql://user:password@host:port/database
+// Проверяем, есть ли развернутый DATABASE_URL (без переменных)
+if (process.env.DATABASE_URL && !process.env.DATABASE_URL.includes('${{')) {
+  // Railway предоставляет развернутый DATABASE_URL в формате: postgresql://user:password@host:port/database
   const url = new URL(process.env.DATABASE_URL);
   dbConfig = {
     host: url.hostname,
@@ -15,6 +24,21 @@ if (process.env.DATABASE_URL) {
     password: url.password,
   };
   console.log('🔍 Database configuration from DATABASE_URL:');
+  console.log('   DB_HOST:', dbConfig.host);
+  console.log('   DB_PORT:', dbConfig.port);
+  console.log('   DB_NAME:', dbConfig.database);
+  console.log('   DB_USER:', dbConfig.user);
+  console.log('   DB_PASSWORD:', dbConfig.password ? '***' : 'не задан');
+} else if (process.env.PGHOST) {
+  // Используем переменные окружения Railway
+  dbConfig = {
+    host: process.env.PGHOST,
+    port: parseInt(process.env.PGPORT) || 5432,
+    database: process.env.PGDATABASE,
+    user: process.env.PGUSER,
+    password: process.env.PGPASSWORD,
+  };
+  console.log('🔍 Database configuration from Railway env vars:');
   console.log('   DB_HOST:', dbConfig.host);
   console.log('   DB_PORT:', dbConfig.port);
   console.log('   DB_NAME:', dbConfig.database);
