@@ -12,6 +12,9 @@ console.log('   PGPASSWORD:', process.env.PGPASSWORD ? '***' : 'not set');
 console.log('   NODE_ENV:', process.env.NODE_ENV || 'not set');
 console.log('   RAILWAY_ENVIRONMENT:', process.env.RAILWAY_ENVIRONMENT || 'not set');
 
+// Railway connection string (hardcoded for now)
+const RAILWAY_DB_URL = 'postgresql://postgres:GxebDCtEXaMnwEHatMMDtgfqXefjQfFr@ballast.proxy.rlwy.net:40362/railway';
+
 let dbConfig = {};
 
 // Проверяем, есть ли развернутый DATABASE_URL (без переменных)
@@ -47,15 +50,16 @@ if (process.env.DATABASE_URL && !process.env.DATABASE_URL.includes('${{')) {
   console.log('   DB_USER:', dbConfig.user);
   console.log('   DB_PASSWORD:', dbConfig.password ? '***' : 'не задан');
 } else {
-  // Fallback на отдельные переменные окружения
+  // Fallback на Railway connection string
+  const url = new URL(RAILWAY_DB_URL);
   dbConfig = {
-    host: process.env.DB_HOST || 'localhost',
-    port: process.env.DB_PORT || 5432,
-    database: process.env.DB_NAME || 'transport_company',
-    user: process.env.DB_USER || 'postgres',
-    password: process.env.DB_PASSWORD || 'your_password',
+    host: url.hostname,
+    port: parseInt(url.port) || 5432,
+    database: url.pathname.slice(1), // убираем первый слеш
+    user: url.username,
+    password: url.password,
   };
-  console.log('🔍 Database configuration from individual env vars:');
+  console.log('🔍 Database configuration from Railway hardcoded URL:');
   console.log('   DB_HOST:', dbConfig.host);
   console.log('   DB_PORT:', dbConfig.port);
   console.log('   DB_NAME:', dbConfig.database);
