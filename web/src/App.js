@@ -45,7 +45,7 @@ function App() {
     const role = userRole || user?.role;
     if (!role) return;
     try {
-      const response = await fetch(`/api/users/my-permissions`, {
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'https://web-production-7cfec.up.railway.app'}/api/users/my-permissions`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('auth_token')}` }
       });
       if (response.ok) {

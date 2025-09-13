@@ -128,6 +128,7 @@ server.listen(PORT, () => {
   console.log(`🚚 Сервер транспортной компании запущен на порту ${PORT}`);
   console.log(`📱 API доступен по адресу: http://localhost:${PORT}/api`);
   console.log(`🌐 Веб-интерфейс: http://localhost:${PORT}`);
+  console.log('🔄 Server restarted at:', new Date().toISOString());
 });
 
 module.exports = { app, server, io };
