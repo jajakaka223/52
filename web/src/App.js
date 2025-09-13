@@ -3,6 +3,7 @@ import { Layout, Menu, Button, message, Space, Tooltip, ConfigProvider } from 'a
 import ruRU from 'antd/es/locale/ru_RU';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ru';
+import api from './config/http';
 import { UserOutlined, LogoutOutlined, DashboardOutlined, CarOutlined, FileTextOutlined, BarChartOutlined, SettingOutlined, BulbOutlined, DollarOutlined, ToolOutlined, EnvironmentOutlined, CreditCardOutlined } from '@ant-design/icons';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
@@ -45,12 +46,9 @@ function App() {
     const role = userRole || user?.role;
     if (!role) return;
     try {
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'https://web-production-7cfec.up.railway.app'}/api/users/my-permissions`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('auth_token')}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setUserPermissions(data.permissions);
+      const response = await api.get('/api/users/my-permissions');
+      if (response.status === 200) {
+        setUserPermissions(response.data.permissions);
       } else {
         // Если не удалось получить права, устанавливаем базовые права
         setUserPermissions({
@@ -144,8 +142,7 @@ function App() {
     try {
       if (savedUser) setUser(JSON.parse(savedUser));
     } catch (_) {}
-    fetch('/api/auth/verify', { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.ok ? r.json() : Promise.reject())
+    api.get('/api/auth/verify')
       .then(() => setIsLoggedIn(true))
       .catch(() => {
         // токен недействителен — очищаем
