@@ -3,6 +3,13 @@ const { logger } = require('../utils/logger');
 
 
 
+console.log('🔍 Database configuration:');
+console.log('   DB_HOST:', process.env.DB_HOST || 'localhost');
+console.log('   DB_PORT:', process.env.DB_PORT || 5432);
+console.log('   DB_NAME:', process.env.DB_NAME || 'transport_company');
+console.log('   DB_USER:', process.env.DB_USER || 'postgres');
+console.log('   DB_PASSWORD:', process.env.DB_PASSWORD ? '***' : 'не задан');
+
 const pool = new Pool({
   host: process.env.DB_HOST || 'localhost',
   port: process.env.DB_PORT || 5432,

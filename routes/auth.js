@@ -95,13 +95,27 @@ router.post('/register', async (req, res) => {
 // Вход в систему
 router.post('/login', async (req, res) => {
   try {
+    console.log('🔐 Login attempt:', { username: req.body.username });
+    
     const { username, password } = req.body;
 
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Имя пользователя и пароль обязательны' });
+    }
+
+    // Проверяем подключение к базе данных
+    console.log('🔍 Checking database connection...');
+    
     // Находим пользователя
     const user = await pool.query(
       'SELECT * FROM users WHERE username = $1 AND is_active = true',
       [username]
     );
+    
+    console.log('👤 User query result:', { 
+      found: user.rows.length > 0, 
+      username: user.rows[0]?.username 
+    });
 
     if (user.rows.length === 0) {
       return res.status(401).json({ error: 'Неверное имя пользователя или пароль' });
@@ -152,6 +166,12 @@ router.post('/login', async (req, res) => {
     });
 
   } catch (error) {
+    console.error('❌ Login error:', error);
+    console.error('❌ Error details:', {
+      message: error.message,
+      code: error.code,
+      stack: error.stack
+    });
     logError(error, { route: '/login', body: req.body });
     res.status(500).json({ error: 'Ошибка сервера при входе' });
   }
