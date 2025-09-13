@@ -9,6 +9,8 @@ console.log('   PGPORT:', process.env.PGPORT || 'not set');
 console.log('   PGDATABASE:', process.env.PGDATABASE || 'not set');
 console.log('   PGUSER:', process.env.PGUSER || 'not set');
 console.log('   PGPASSWORD:', process.env.PGPASSWORD ? '***' : 'not set');
+console.log('   NODE_ENV:', process.env.NODE_ENV || 'not set');
+console.log('   RAILWAY_ENVIRONMENT:', process.env.RAILWAY_ENVIRONMENT || 'not set');
 
 let dbConfig = {};
 
@@ -67,6 +69,14 @@ const pool = new Pool({
   idleTimeoutMillis: Number(process.env.DB_IDLE_TIMEOUT_MS || 60000),
   connectionTimeoutMillis: Number(process.env.DB_CONN_TIMEOUT_MS || 5000), 
 });
+
+// Дополнительная проверка конфигурации
+console.log('🔍 Final database pool configuration:');
+console.log('   host:', pool.options.host);
+console.log('   port:', pool.options.port);
+console.log('   database:', pool.options.database);
+console.log('   user:', pool.options.user);
+console.log('   password:', pool.options.password ? '***' : 'not set');
 
 // Функция создания таблиц
 const createTables = async () => {
