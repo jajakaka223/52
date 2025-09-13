@@ -32,9 +32,11 @@
 ## Переменные окружения
 
 ### Backend (Railway)
+
 - `DATABASE_URL` - строка подключения к PostgreSQL
 - `FRONTEND_URL` - URL фронтенда для CORS
 - `NODE_ENV=production`
 
 ### Frontend (Vercel)
+
 - `REACT_APP_API_URL` - URL бэкенда API

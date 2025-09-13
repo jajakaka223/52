@@ -68,3 +68,6 @@ Thumbs.db
 # Cache directories
 .cache/
 web/.cache/
+
+# Uploaded files
+uploads/
