@@ -2,7 +2,7 @@
 const isDevelopment = process.env.NODE_ENV === 'development';
 const API_BASE_URL = isDevelopment 
   ? 'http://localhost:3000' 
-  : process.env.REACT_APP_API_URL || 'https://your-railway-app.railway.app';
+  : process.env.REACT_APP_API_URL || 'https://web-production-7cfec.up.railway.app';
 
 // Helper function to create full API URL
 export const getApiUrl = (endpoint) => {
