@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "buildCommand": "cd web && npm run build",
+  "buildCommand": "npm run build",
   "outputDirectory": "web/build",
   "framework": "create-react-app",
   "rewrites": [
