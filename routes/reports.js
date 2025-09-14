@@ -51,6 +51,12 @@ router.get('/overview', requireAdmin, async (req, res) => {
 // Отчет по заявкам по датам
 router.get('/orders-by-date', requireAdmin, async (req, res) => {
   try {
+    console.log('📊 Запрос отчета orders-by-date:', {
+      user: req.user,
+      query: req.query,
+      headers: req.headers
+    });
+    
     const { startDate, endDate, groupBy = 'day' } = req.query;
     
     if (!startDate || !endDate) {
@@ -93,6 +99,7 @@ router.get('/orders-by-date', requireAdmin, async (req, res) => {
     });
 
   } catch (error) {
+    console.error('❌ Ошибка в orders-by-date:', error);
     logError(error, { route: '/reports/orders-by-date', query: req.query, user: req.user });
     res.status(500).json({ error: 'Ошибка сервера при получении отчета' });
   }

@@ -335,39 +335,71 @@ router.patch('/:id/status', async (req, res) => {
             toCity
           });
 
-          // Пробуем SendGrid сначала (для Railway)
+          // Пробуем разные способы отправки email
+          let emailSent = false;
+          
+          // Способ 1: SendGrid (если настроен)
           if (process.env.SENDGRID_API_KEY) {
-            console.log('📧 Отправляем через SendGrid...');
-            sgMail.setApiKey(process.env.SENDGRID_API_KEY);
-            
-            const msg = {
-              to: toEmail,
-              from: 'gruzoperevozki436@gmail.com',
-              subject,
-              text
-            };
-            
-            const mailInfo = await sgMail.send(msg);
-            console.log('✅ Email отправлен через SendGrid:', mailInfo[0].statusCode);
-          } else {
-            // Fallback на nodemailer (для локальной разработки)
-            console.log('📧 Отправляем через nodemailer...');
-            const transporter = nodemailer.createTransport({
-              service: 'gmail',
-              auth: {
-                user: 'gruzoperevozki436@gmail.com',
-                pass: 'epah mwoe ynia xfjc'
-              }
-            });
+            try {
+              console.log('📧 Отправляем через SendGrid...');
+              sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+              
+              const msg = {
+                to: toEmail,
+                from: 'gruzoperevozki436@gmail.com',
+                subject,
+                text
+              };
+              
+              const mailInfo = await sgMail.send(msg);
+              console.log('✅ Email отправлен через SendGrid:', mailInfo[0].statusCode);
+              emailSent = true;
+            } catch (sgError) {
+              console.log('❌ SendGrid не сработал:', sgError.message);
+            }
+          }
+          
+          // Способ 2: Gmail SMTP с правильными настройками для Railway
+          if (!emailSent) {
+            try {
+              console.log('📧 Отправляем через Gmail SMTP...');
+              const transporter = nodemailer.createTransport({
+                host: 'smtp.gmail.com',
+                port: 587,
+                secure: false, // true для 465, false для других портов
+                auth: {
+                  user: 'gruzoperevozki436@gmail.com',
+                  pass: 'epah mwoe ynia xfjc'
+                },
+                tls: {
+                  rejectUnauthorized: false
+                },
+                connectionTimeout: 10000, // 10 секунд
+                greetingTimeout: 10000,
+                socketTimeout: 10000
+              });
 
-            const mailInfo = await transporter.sendMail({
-              from: 'gruzoperevozki436@gmail.com',
+              const mailInfo = await transporter.sendMail({
+                from: 'gruzoperevozki436@gmail.com',
+                to: toEmail,
+                subject,
+                text
+              });
+              
+              console.log('✅ Email отправлен через Gmail SMTP:', mailInfo.messageId);
+              emailSent = true;
+            } catch (gmailError) {
+              console.log('❌ Gmail SMTP не сработал:', gmailError.message);
+            }
+          }
+          
+          // Способ 3: Простое логирование (если ничего не работает)
+          if (!emailSent) {
+            console.log('⚠️ Email не отправлен, но заявка выполнена. Данные для email:', {
               to: toEmail,
               subject,
               text
             });
-            
-            console.log('✅ Email отправлен через nodemailer:', mailInfo.messageId);
           }
         } else {
           console.log('⚠️ У заявки нет email адреса');
