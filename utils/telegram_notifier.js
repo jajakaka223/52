@@ -1,84 +1,190 @@
 const axios = require('axios');
+const { google } = require('googleapis');
 
 /**
- * Отправка уведомления о выполненной заявке в Telegram бот
+ * Отправка уведомления в Telegram о выполненной заявке
  * @param {string} emailAddress - email адрес клиента
  * @param {string} routeInfo - информация о маршруте
  * @param {Object} orderData - дополнительные данные заявки
  */
-async function sendCompletionNotification(emailAddress, routeInfo, orderData = {}) {
+async function sendTelegramNotification(emailAddress, routeInfo, orderData = {}) {
   try {
-    // URL сервера с Python ботом
-    const PYTHON_BOT_SERVER = process.env.PYTHON_BOT_SERVER || 'http://109.205.58.89:8000';
-    
-    // ID чата для отправки уведомлений
+    const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
     const CHAT_ID = process.env.TELEGRAM_CHAT_ID || '-1002419921277';
     const THREAD_ID = process.env.TELEGRAM_THREAD_ID || '12493';
-    
-    if (!CHAT_ID) {
-      console.log('⚠️ TELEGRAM_CHAT_ID не настроен, уведомление не отправлено');
-      return { success: false, error: 'TELEGRAM_CHAT_ID not configured' };
+
+    if (!TELEGRAM_BOT_TOKEN || !CHAT_ID) {
+      console.log('⚠️ TELEGRAM_BOT_TOKEN или TELEGRAM_CHAT_ID не настроены, уведомление не отправлено');
+      return { success: false, error: 'Telegram credentials not configured' };
     }
-    
-    // Формируем данные для отправки на сервер с Python ботом
-    const notificationData = {
+
+    const message = {
       chat_id: CHAT_ID,
       message_thread_id: THREAD_ID,
-      text: `✅ **ЗАЯВКА ВЫПОЛНЕНА**
-
-📧 **Email клиента:** ${emailAddress}
-🛣️ **Маршрут:** ${routeInfo}
-📅 **Дата выполнения:** ${new Date().toLocaleDateString('ru-RU')}
-${orderData.orderId ? `🆔 **ID заявки:** ${orderData.orderId}` : ''}
-${orderData.company ? `🏢 **Компания:** ${orderData.company}` : ''}
-${orderData.clientName ? `👤 **Клиент:** ${orderData.clientName}` : ''}
-${orderData.phone ? `📞 **Телефон:** ${orderData.phone}` : ''}
-
-📧 **Сообщение отправлено клиенту**`,
+      text: `✅ **ЗАЯВКА ВЫПОЛНЕНА**\n\n📧 **Email клиента:** ${emailAddress}\n🛣️ **Маршрут:** ${routeInfo}\n📅 **Дата выполнения:** ${new Date().toLocaleDateString('ru-RU')}\n${orderData.orderId ? `🆔 **ID заявки:** ${orderData.orderId}` : ''}\n${orderData.company ? `🏢 **Компания:** ${orderData.company}` : ''}\n${orderData.clientName ? `👤 **Клиент:** ${orderData.clientName}` : ''}\n${orderData.phone ? `📞 **Телефон:** ${orderData.phone}` : ''}\n\n📧 **Сообщение отправлено клиенту**`,
       parse_mode: 'Markdown'
     };
 
-    console.log('📱 Отправляем уведомление о выполненной заявке через Python бот сервер:', {
+    console.log('📱 Отправляем уведомление о выполненной заявке в Telegram:', {
       emailAddress,
       routeInfo,
-      orderId: orderData.orderId,
-      server: PYTHON_BOT_SERVER
+      orderId: orderData.orderId
     });
 
-    // Отправляем запрос на сервер с Python ботом
-    const response = await axios.post(`${PYTHON_BOT_SERVER}/send-telegram-message`, notificationData, {
+    const telegramUrl = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
+    const response = await axios.post(telegramUrl, message, {
       timeout: 15000,
       headers: {
         'Content-Type': 'application/json'
       }
     });
 
-    if (response.data.success) {
-      console.log('✅ Уведомление о выполненной заявке успешно отправлено через Python бот сервер');
-      return { success: true, messageId: response.data.messageId };
+    if (response.data.ok) {
+      console.log('✅ Уведомление о выполненной заявке успешно отправлено в Telegram');
+      return { success: true, messageId: response.data.result.message_id };
     } else {
-      console.log('❌ Ошибка отправки уведомления через Python бот сервер:', response.data);
-      return { success: false, error: response.data.error || 'Unknown error' };
+      console.log('❌ Ошибка отправки уведомления в Telegram:', response.data);
+      return { success: false, error: response.data.description || 'Unknown error' };
     }
-
   } catch (error) {
-    console.log('❌ Ошибка при отправке уведомления через Python бот сервер:', error.message);
+    console.log('❌ Ошибка при отправке уведомления в Telegram:', error.message);
     return { success: false, error: error.message };
   }
 }
 
 /**
- * Отправка уведомления о выполненной заявке в Telegram бот
+ * Отправка email с рекомендацией через Gmail API
+ * @param {string} emailAddress - email адрес клиента
+ * @param {string} routeInfo - информация о маршруте
+ * @param {Object} orderData - дополнительные данные заявки
+ */
+async function sendRecommendationEmail(emailAddress, routeInfo, orderData = {}) {
+  try {
+    const GMAIL_CLIENT_ID = process.env.GMAIL_CLIENT_ID;
+    const GMAIL_CLIENT_SECRET = process.env.GMAIL_CLIENT_SECRET;
+    const GMAIL_REFRESH_TOKEN = process.env.GMAIL_REFRESH_TOKEN;
+    const GMAIL_USER_EMAIL = process.env.GMAIL_USER_EMAIL || 'gruzoperevozki436@gmail.com';
+
+    if (!GMAIL_CLIENT_ID || !GMAIL_CLIENT_SECRET || !GMAIL_REFRESH_TOKEN) {
+      console.log('⚠️ Gmail API credentials не настроены, email не отправлен');
+      return { success: false, error: 'Gmail API credentials not configured' };
+    }
+
+    console.log('📧 Отправляем email с рекомендацией через Gmail API:', {
+      emailAddress,
+      routeInfo,
+      orderId: orderData.orderId
+    });
+
+    // Настройка OAuth2 клиента
+    const oauth2Client = new google.auth.OAuth2(
+      GMAIL_CLIENT_ID,
+      GMAIL_CLIENT_SECRET,
+      'urn:ietf:wg:oauth:2.0:oob'
+    );
+
+    oauth2Client.setCredentials({
+      refresh_token: GMAIL_REFRESH_TOKEN
+    });
+
+    const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+
+    // Создание email сообщения
+    const emailSubject = `Заявка по маршруту ${routeInfo} выполнена`;
+    const emailBody = `
+    <html>
+        <body>
+            <p>Доброго времени суток, благодарим за проявленное доверие и надеемся на дальнейшее сотрудничество.</p>
+            <p>Заявка по маршруту <strong>"${routeInfo}"</strong> выполнена успешно, оплату от Вас получили.</p>
+            <br>
+            <p><strong>Просим оставить рекомендацию на нашем профиле ATI - <a href="https://ati.su/firms/5308606">https://ati.su/firms/5308606</a>, так же от нас последует ответная рекомендация.</strong></p>
+            <br>
+            <p>Желаем успехов Вам и Вашему бизнесу.</p>
+            <p><strong>С уважением команда "52 EXPRESS"</strong></p>
+        </body>
+    </html>
+    `;
+
+    // Кодирование email в base64
+    const emailLines = [
+      `From: 52 EXPRESS <${GMAIL_USER_EMAIL}>`,
+      `To: ${emailAddress}`,
+      `Subject: ${emailSubject}`,
+      'Content-Type: text/html; charset=utf-8',
+      '',
+      emailBody
+    ];
+
+    const email = emailLines.join('\r\n');
+    const encodedEmail = Buffer.from(email).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+    // Отправка email
+    const result = await gmail.users.messages.send({
+      userId: 'me',
+      requestBody: {
+        raw: encodedEmail
+      }
+    });
+
+    console.log('✅ Email с рекомендацией успешно отправлен через Gmail API');
+    return { success: true, messageId: result.data.id };
+
+  } catch (error) {
+    console.log('❌ Ошибка при отправке email через Gmail API:', error.message);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Основная функция для отправки уведомления о выполненной заявке
+ * @param {string} emailAddress - email адрес клиента
+ * @param {string} routeInfo - информация о маршруте
+ * @param {Object} orderData - дополнительные данные заявки
+ */
+async function sendCompletionNotification(emailAddress, routeInfo, orderData = {}) {
+  try {
+    // Отладочная информация о переменных окружения
+    console.log('🔍 Переменные окружения для уведомлений:', {
+      TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN ? 'настроен' : 'не настроен',
+      TELEGRAM_CHAT_ID: process.env.TELEGRAM_CHAT_ID || 'не настроен',
+      TELEGRAM_THREAD_ID: process.env.TELEGRAM_THREAD_ID || 'не настроен',
+      GMAIL_CLIENT_ID: process.env.GMAIL_CLIENT_ID ? 'настроен' : 'не настроен',
+      GMAIL_CLIENT_SECRET: process.env.GMAIL_CLIENT_SECRET ? 'настроен' : 'не настроен',
+      GMAIL_REFRESH_TOKEN: process.env.GMAIL_REFRESH_TOKEN ? 'настроен' : 'не настроен',
+      GMAIL_USER_EMAIL: process.env.GMAIL_USER_EMAIL || 'не настроен',
+      PYTHON_BOT_SERVER: process.env.PYTHON_BOT_SERVER || 'не настроен'
+    });
+
+    // Отправляем уведомление в Telegram
+    const telegramResult = await sendTelegramNotification(emailAddress, routeInfo, orderData);
+    
+    // Отправляем email с рекомендацией
+    const emailResult = await sendRecommendationEmail(emailAddress, routeInfo, orderData);
+
+    return {
+      success: telegramResult.success && emailResult.success,
+      telegram: telegramResult,
+      email: emailResult
+    };
+  } catch (error) {
+    console.log('❌ Ошибка при отправке уведомления о выполненной заявке:', error.message);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Отправка уведомления о выполненной заявке (алиас для совместимости)
  * @param {string} emailAddress - email адрес клиента
  * @param {string} routeInfo - информация о маршруте
  * @param {Object} orderData - дополнительные данные заявки
  */
 async function sendCompletionEmail(emailAddress, routeInfo, orderData = {}) {
-  // Вызываем функцию отправки уведомления в Telegram
   return await sendCompletionNotification(emailAddress, routeInfo, orderData);
 }
 
 module.exports = {
   sendCompletionNotification,
-  sendCompletionEmail
+  sendCompletionEmail,
+  sendTelegramNotification,
+  sendRecommendationEmail
 };
