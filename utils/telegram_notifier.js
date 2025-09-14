@@ -8,8 +8,8 @@ const axios = require('axios');
  */
 async function sendCompletionNotification(emailAddress, routeInfo, orderData = {}) {
   try {
-    // URL вашего Telegram бота (замените на реальный)
-    const TELEGRAM_BOT_URL = process.env.TELEGRAM_BOT_URL || 'https://api.telegram.org/bot7569282805:AAFQHAX-moIoTpVSLvNpOXWtrVbwepr31iE';
+    // URL сервера с Python ботом
+    const PYTHON_BOT_SERVER = process.env.PYTHON_BOT_SERVER || 'http://109.205.58.89:8000';
     
     // ID чата для отправки уведомлений
     const CHAT_ID = process.env.TELEGRAM_CHAT_ID || '-1002419921277';
@@ -20,10 +20,10 @@ async function sendCompletionNotification(emailAddress, routeInfo, orderData = {
       return { success: false, error: 'TELEGRAM_CHAT_ID not configured' };
     }
     
-    // Формируем простое уведомление о выполненной заявке
-    const message = {
+    // Формируем данные для отправки на сервер с Python ботом
+    const notificationData = {
       chat_id: CHAT_ID,
-      message_thread_id: THREAD_ID, // Отправляем в конкретную тему
+      message_thread_id: THREAD_ID,
       text: `✅ **ЗАЯВКА ВЫПОЛНЕНА**
 
 📧 **Email клиента:** ${emailAddress}
@@ -38,30 +38,31 @@ ${orderData.phone ? `📞 **Телефон:** ${orderData.phone}` : ''}
       parse_mode: 'Markdown'
     };
 
-    console.log('📱 Отправляем уведомление о выполненной заявке в Telegram бот:', {
+    console.log('📱 Отправляем уведомление о выполненной заявке через Python бот сервер:', {
       emailAddress,
       routeInfo,
-      orderId: orderData.orderId
+      orderId: orderData.orderId,
+      server: PYTHON_BOT_SERVER
     });
 
-    // Отправляем уведомление в Telegram бот
-    const response = await axios.post(`${TELEGRAM_BOT_URL}/sendMessage`, message, {
-      timeout: 10000,
+    // Отправляем запрос на сервер с Python ботом
+    const response = await axios.post(`${PYTHON_BOT_SERVER}/send-telegram-message`, notificationData, {
+      timeout: 15000,
       headers: {
         'Content-Type': 'application/json'
       }
     });
 
-    if (response.data.ok) {
-      console.log('✅ Уведомление о выполненной заявке успешно отправлено в Telegram бот');
-      return { success: true, messageId: response.data.result.message_id };
+    if (response.data.success) {
+      console.log('✅ Уведомление о выполненной заявке успешно отправлено через Python бот сервер');
+      return { success: true, messageId: response.data.messageId };
     } else {
-      console.log('❌ Ошибка отправки уведомления в Telegram бот:', response.data);
-      return { success: false, error: response.data };
+      console.log('❌ Ошибка отправки уведомления через Python бот сервер:', response.data);
+      return { success: false, error: response.data.error || 'Unknown error' };
     }
 
   } catch (error) {
-    console.log('❌ Ошибка при отправке уведомления в Telegram бот:', error.message);
+    console.log('❌ Ошибка при отправке уведомления через Python бот сервер:', error.message);
     return { success: false, error: error.message };
   }
 }
