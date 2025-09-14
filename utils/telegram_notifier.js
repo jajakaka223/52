@@ -84,7 +84,8 @@ async function sendRecommendationEmail(emailAddress, routeInfo, orderData = {}) 
     console.log('📧 Отправляем email с рекомендацией через Gmail API:', {
       emailAddress,
       routeInfo,
-      orderId: orderData.orderId
+      orderId: orderData.orderId,
+      fromEmail: GMAIL_USER_EMAIL
     });
 
     // Настройка OAuth2 клиента
@@ -99,6 +100,18 @@ async function sendRecommendationEmail(emailAddress, routeInfo, orderData = {}) 
     });
 
     const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+
+    // Проверяем, с какого аккаунта отправляются письма
+    try {
+      const profile = await gmail.users.getProfile({ userId: 'me' });
+      console.log('📧 Gmail профиль:', {
+        emailAddress: profile.data.emailAddress,
+        expectedEmail: GMAIL_USER_EMAIL,
+        match: profile.data.emailAddress === GMAIL_USER_EMAIL
+      });
+    } catch (error) {
+      console.log('⚠️ Не удалось получить профиль Gmail:', error.message);
+    }
 
     // Создание email сообщения
     const emailSubject = `Заявка по маршруту ${routeInfo} выполнена`;
@@ -116,12 +129,16 @@ async function sendRecommendationEmail(emailAddress, routeInfo, orderData = {}) 
     </html>
     `;
 
+    // Правильное кодирование темы письма в UTF-8
+    const encodedSubject = `=?UTF-8?B?${Buffer.from(emailSubject, 'utf8').toString('base64')}?=`;
+
     // Кодирование email в base64
     const emailLines = [
       `From: 52 EXPRESS <${GMAIL_USER_EMAIL}>`,
       `To: ${emailAddress}`,
-      `Subject: ${emailSubject}`,
+      `Subject: ${encodedSubject}`,
       'Content-Type: text/html; charset=utf-8',
+      'MIME-Version: 1.0',
       '',
       emailBody
     ];
