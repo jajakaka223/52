@@ -313,12 +313,26 @@ router.patch('/:id/status', async (req, res) => {
       if (status === 'completed') {
         const order = result.rows[0];
         const toEmail = order.email;
+        console.log('📧 Попытка отправки email для заявки:', {
+          orderId: id,
+          email: toEmail,
+          direction: order.direction
+        });
+        
         if (toEmail) {
           // Извлекаем направление в формате Откуда → Куда
           const firstLine = String(order.direction || '').split('\n')[0] || '';
           const [fromCity, toCity] = firstLine.split(' → ');
           const subject = `Заявка по маршруту "${fromCity || ''} - ${toCity || ''}" выполнена успешно.`;
           const text = 'Спасибо.';
+
+          console.log('📝 Данные для email:', {
+            to: toEmail,
+            subject,
+            text,
+            fromCity,
+            toCity
+          });
 
           const transporter = nodemailer.createTransport({
             service: 'gmail',
@@ -328,16 +342,21 @@ router.patch('/:id/status', async (req, res) => {
             }
           });
 
-          await transporter.sendMail({
+          const mailInfo = await transporter.sendMail({
             from: 'gruzoperevozki436@gmail.com',
             to: toEmail,
             subject,
             text
           });
+          
+          console.log('✅ Email отправлен успешно:', mailInfo.messageId);
+        } else {
+          console.log('⚠️ У заявки нет email адреса');
         }
       }
     } catch (mailErr) {
       // Не валим основной запрос из-за email; просто логируем
+      console.error('❌ Ошибка отправки email:', mailErr);
       logError(mailErr, { route: `/orders/${id}/status`, note: 'email_notify_failed' });
     }
 
