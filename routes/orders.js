@@ -4,6 +4,7 @@ const { authenticateToken, requireAdmin, requireDriver, logRequest, checkUserAct
 const nodemailer = require('nodemailer');
 const sgMail = require('@sendgrid/mail');
 const { logUserAction, logError } = require('../utils/logger');
+const { sendCompletionEmail } = require('../utils/telegram_notifier');
 
 const router = express.Router();
 
@@ -309,12 +310,12 @@ router.patch('/:id/status', async (req, res) => {
       return res.status(404).json({ error: 'Заявка не найдена' });
     }
 
-    // Если статус стал "completed" — отправляем уведомление на email из заявки
+    // Если статус стал "completed" — отправляем запрос на рекомендацию в Telegram бот
     try {
       if (status === 'completed') {
         const order = result.rows[0];
         const toEmail = order.email;
-        console.log('📧 Попытка отправки email для заявки:', {
+        console.log('📱 Попытка отправки запроса на рекомендацию в Telegram бот для заявки:', {
           orderId: id,
           email: toEmail,
           direction: order.direction
@@ -324,91 +325,37 @@ router.patch('/:id/status', async (req, res) => {
           // Извлекаем направление в формате Откуда → Куда
           const firstLine = String(order.direction || '').split('\n')[0] || '';
           const [fromCity, toCity] = firstLine.split(' → ');
-          const subject = `Заявка по маршруту "${fromCity || ''} - ${toCity || ''}" выполнена успешно.`;
-          const text = 'Спасибо.';
+          const routeInfo = `${fromCity || ''} - ${toCity || ''}`;
 
-          console.log('📝 Данные для email:', {
-            to: toEmail,
-            subject,
-            text,
+          console.log('📝 Данные для запроса рекомендации в Telegram:', {
+            email: toEmail,
+            routeInfo,
             fromCity,
             toCity
           });
 
-          // Пробуем разные способы отправки email
-          let emailSent = false;
-          
-          // Способ 1: SendGrid (если настроен)
-          if (process.env.SENDGRID_API_KEY) {
-            try {
-              console.log('📧 Отправляем через SendGrid...');
-              sgMail.setApiKey(process.env.SENDGRID_API_KEY);
-              
-              const msg = {
-                to: toEmail,
-                from: 'gruzoperevozki436@gmail.com',
-                subject,
-                text
-              };
-              
-              const mailInfo = await sgMail.send(msg);
-              console.log('✅ Email отправлен через SendGrid:', mailInfo[0].statusCode);
-              emailSent = true;
-            } catch (sgError) {
-              console.log('❌ SendGrid не сработал:', sgError.message);
-            }
-          }
-          
-          // Способ 2: Gmail SMTP с правильными настройками для Railway
-          if (!emailSent) {
-            try {
-              console.log('📧 Отправляем через Gmail SMTP...');
-              const transporter = nodemailer.createTransport({
-                host: 'smtp.gmail.com',
-                port: 587,
-                secure: false, // true для 465, false для других портов
-                auth: {
-                  user: 'gruzoperevozki436@gmail.com',
-                  pass: 'epah mwoe ynia xfjc'
-                },
-                tls: {
-                  rejectUnauthorized: false
-                },
-                connectionTimeout: 10000, // 10 секунд
-                greetingTimeout: 10000,
-                socketTimeout: 10000
-              });
+          // Отправляем запрос на рекомендацию в Telegram бот
+          const telegramResult = await sendCompletionEmail(toEmail, routeInfo, {
+            orderId: id,
+            company: order.company,
+            clientName: order.client_name,
+            phone: order.phone,
+            direction: order.direction
+          });
 
-              const mailInfo = await transporter.sendMail({
-                from: 'gruzoperevozki436@gmail.com',
-                to: toEmail,
-                subject,
-                text
-              });
-              
-              console.log('✅ Email отправлен через Gmail SMTP:', mailInfo.messageId);
-              emailSent = true;
-            } catch (gmailError) {
-              console.log('❌ Gmail SMTP не сработал:', gmailError.message);
-            }
-          }
-          
-          // Способ 3: Простое логирование (если ничего не работает)
-          if (!emailSent) {
-            console.log('⚠️ Email не отправлен, но заявка выполнена. Данные для email:', {
-              to: toEmail,
-              subject,
-              text
-            });
+          if (telegramResult.success) {
+            console.log('✅ Запрос на рекомендацию успешно отправлен в Telegram бот');
+          } else {
+            console.log('❌ Ошибка отправки запроса в Telegram бот:', telegramResult.error);
           }
         } else {
-          console.log('⚠️ У заявки нет email адреса');
+          console.log('⚠️ У заявки нет email адреса, запрос на рекомендацию не отправлен');
         }
       }
-    } catch (mailErr) {
-      // Не валим основной запрос из-за email; просто логируем
-      console.error('❌ Ошибка отправки email:', mailErr);
-      logError(mailErr, { route: `/orders/${id}/status`, note: 'email_notify_failed' });
+    } catch (telegramErr) {
+      // Не валим основной запрос из-за Telegram; просто логируем
+      console.error('❌ Ошибка при отправке запроса в Telegram бот:', telegramErr);
+      logError(telegramErr, { route: `/orders/${id}/status`, note: 'telegram_recommendation_request_failed' });
     }
 
     // Логируем изменение статуса

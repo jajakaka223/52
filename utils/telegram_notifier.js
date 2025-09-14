@@ -11,18 +11,20 @@ async function sendCompletionNotification(emailAddress, routeInfo, orderData = {
     // URL вашего Telegram бота (замените на реальный)
     const TELEGRAM_BOT_URL = process.env.TELEGRAM_BOT_URL || 'https://api.telegram.org/bot7569282805:AAFQHAX-moIoTpVSLvNpOXWtrVbwepr31iE';
     
-    // ID чата для отправки уведомлений (замените на ваш)
-    const CHAT_ID = process.env.TELEGRAM_CHAT_ID;
+    // ID чата для отправки уведомлений
+    const CHAT_ID = process.env.TELEGRAM_CHAT_ID || '-1002419921277';
+    const THREAD_ID = process.env.TELEGRAM_THREAD_ID || '12493';
     
-    if (!CHAT_ID || CHAT_ID === 'YOUR_CHAT_ID') {
+    if (!CHAT_ID) {
       console.log('⚠️ TELEGRAM_CHAT_ID не настроен, уведомление не отправлено');
       return { success: false, error: 'TELEGRAM_CHAT_ID not configured' };
     }
     
-    // Формируем сообщение для бота
+    // Формируем запрос на отправку рекомендации
     const message = {
       chat_id: CHAT_ID,
-      text: `📋 **Уведомление о выполненной заявке**
+      message_thread_id: THREAD_ID, // Отправляем в конкретную тему
+      text: `🎯 **ЗАПРОС НА ОТПРАВКУ РЕКОМЕНДАЦИИ**
 
 📧 **Email клиента:** ${emailAddress}
 🛣️ **Маршрут:** ${routeInfo}
@@ -32,11 +34,23 @@ ${orderData.company ? `🏢 **Компания:** ${orderData.company}` : ''}
 ${orderData.clientName ? `👤 **Клиент:** ${orderData.clientName}` : ''}
 ${orderData.phone ? `📞 **Телефон:** ${orderData.phone}` : ''}
 
-**Действие:** Отправить уведомление клиенту о выполненной заявке`,
+**Действие:** Отправить рекомендацию клиенту о выполненной заявке
+
+---
+💡 **Рекомендации для клиента:**
+- Оцените качество обслуживания
+- Оставьте отзыв о работе  
+- Рекомендуйте нас друзьям и коллегам
+- Свяжитесь с нами для новых заказов
+
+📞 **Контакты:**
+- Телефон: +7 (XXX) XXX-XX-XX
+- Email: info@yourcompany.com
+- Сайт: yourcompany.com`,
       parse_mode: 'Markdown'
     };
 
-    console.log('📱 Отправляем уведомление в Telegram бот:', {
+    console.log('📱 Отправляем запрос на отправку рекомендации в Telegram бот:', {
       emailAddress,
       routeInfo,
       orderId: orderData.orderId
@@ -51,15 +65,15 @@ ${orderData.phone ? `📞 **Телефон:** ${orderData.phone}` : ''}
     });
 
     if (response.data.ok) {
-      console.log('✅ Уведомление успешно отправлено в Telegram бот');
+      console.log('✅ Запрос на отправку рекомендации успешно отправлен в Telegram бот');
       return { success: true, messageId: response.data.result.message_id };
     } else {
-      console.log('❌ Ошибка отправки в Telegram бот:', response.data);
+      console.log('❌ Ошибка отправки запроса в Telegram бот:', response.data);
       return { success: false, error: response.data };
     }
 
   } catch (error) {
-    console.log('❌ Ошибка при отправке уведомления в Telegram бот:', error.message);
+    console.log('❌ Ошибка при отправке запроса в Telegram бот:', error.message);
     return { success: false, error: error.message };
   }
 }
