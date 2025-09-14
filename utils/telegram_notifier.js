@@ -203,9 +203,56 @@ async function sendCompletionEmail(emailAddress, routeInfo, orderData = {}) {
   return await sendCompletionNotification(emailAddress, routeInfo, orderData);
 }
 
+/**
+ * Тестовая функция для проверки Telegram API
+ */
+async function testTelegramAPI() {
+  try {
+    const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+    const CHAT_ID = process.env.TELEGRAM_CHAT_ID || '-1002419921277';
+    const THREAD_ID = process.env.TELEGRAM_THREAD_ID || '12493';
+
+    if (!TELEGRAM_BOT_TOKEN) {
+      console.log('❌ TELEGRAM_BOT_TOKEN не настроен');
+      return { success: false, error: 'TELEGRAM_BOT_TOKEN not configured' };
+    }
+
+    console.log('🧪 Тестируем Telegram API...');
+    console.log('🔍 Настройки:', { CHAT_ID, THREAD_ID });
+
+    // Сначала проверим информацию о боте
+    const botInfoUrl = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getMe`;
+    const botInfoResponse = await axios.get(botInfoUrl);
+    console.log('🤖 Информация о боте:', botInfoResponse.data);
+
+    // Проверим информацию о чате
+    const chatInfoUrl = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getChat`;
+    const chatInfoResponse = await axios.post(chatInfoUrl, { chat_id: CHAT_ID });
+    console.log('💬 Информация о чате:', chatInfoResponse.data);
+
+    // Отправим тестовое сообщение
+    const testMessage = {
+      chat_id: CHAT_ID,
+      message_thread_id: THREAD_ID,
+      text: '🧪 ТЕСТОВОЕ СООБЩЕНИЕ - проверка работы бота',
+      parse_mode: 'Markdown'
+    };
+
+    const testUrl = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
+    const testResponse = await axios.post(testUrl, testMessage);
+    console.log('📤 Тестовое сообщение отправлено:', testResponse.data);
+
+    return { success: true, data: testResponse.data };
+  } catch (error) {
+    console.log('❌ Ошибка тестирования Telegram API:', error.response?.data || error.message);
+    return { success: false, error: error.response?.data || error.message };
+  }
+}
+
 module.exports = {
   sendCompletionNotification,
   sendCompletionEmail,
   sendTelegramNotification,
-  sendRecommendationEmail
+  sendRecommendationEmail,
+  testTelegramAPI
 };

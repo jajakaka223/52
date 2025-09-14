@@ -114,6 +114,17 @@ app.use('/api/accounting', require('./routes/accounting'));
 app.use('/api/utils', require('./routes/utils'));
 app.use('/api/notifications', require('./routes/notifications'));
 
+// Тестовый эндпоинт для проверки Telegram API
+app.get('/api/test-telegram', async (req, res) => {
+  try {
+    const { testTelegramAPI } = require('./utils/telegram_notifier');
+    const result = await testTelegramAPI();
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Socket.io connection handling
 require('./socket/socketHandler')(io);
 
