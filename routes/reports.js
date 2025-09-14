@@ -32,7 +32,6 @@ router.get('/overview', requireAdmin, async (req, res) => {
         SUM(CASE WHEN o.status = 'completed' THEN o.amount ELSE 0 END) as total_revenue,
         SUM(CASE WHEN o.status NOT IN ('completed','cancelled') THEN o.amount ELSE 0 END) as expected_revenue,
         AVG(CASE WHEN o.status = 'completed' THEN o.amount ELSE NULL END) as avg_order_amount,
-        SUM(CASE WHEN o.status = 'completed' THEN o.distance ELSE 0 END) as total_distance,
         SUM(CASE WHEN o.status = 'completed' THEN o.weight ELSE 0 END) as total_weight
       FROM orders o
       ${dateFilter}
@@ -121,7 +120,6 @@ router.get('/drivers-performance', requireAdmin, async (req, res) => {
         COUNT(CASE WHEN o.status = 'completed' THEN 1 END) as completed_orders,
         SUM(CASE WHEN o.status = 'completed' THEN o.amount ELSE 0 END) as total_revenue,
         AVG(CASE WHEN o.status = 'completed' THEN o.amount ELSE NULL END) as avg_order_amount,
-        SUM(CASE WHEN o.status = 'completed' THEN o.distance ELSE 0 END) as total_distance,
         SUM(CASE WHEN o.status = 'completed' THEN o.weight ELSE 0 END) as total_weight
       FROM users u
       LEFT JOIN orders o ON u.id = o.driver_id ${dateFilter}
@@ -208,7 +206,6 @@ router.get('/clients-analysis', requireAdmin, async (req, res) => {
         COUNT(CASE WHEN o.status = 'completed' THEN 1 END) as completed_orders,
         SUM(CASE WHEN o.status = 'completed' THEN o.amount ELSE 0 END) as total_revenue,
         AVG(CASE WHEN o.status = 'completed' THEN o.amount ELSE NULL END) as avg_order_amount,
-        SUM(CASE WHEN o.status = 'completed' THEN o.distance ELSE 0 END) as total_distance,
         MAX(o.date) as last_order_date
       FROM orders o
       ${dateFilter}
@@ -250,7 +247,6 @@ router.get('/routes-analysis', requireAdmin, async (req, res) => {
         COUNT(CASE WHEN o.status = 'completed' THEN 1 END) as completed_orders,
         SUM(CASE WHEN o.status = 'completed' THEN o.amount ELSE 0 END) as total_revenue,
         AVG(CASE WHEN o.status = 'completed' THEN o.amount ELSE NULL END) as avg_order_amount,
-        AVG(CASE WHEN o.status = 'completed' THEN o.distance ELSE NULL END) as avg_distance,
         AVG(CASE WHEN o.status = 'completed' THEN o.weight ELSE NULL END) as avg_weight
       FROM orders o
       ${dateFilter}
@@ -289,7 +285,6 @@ router.get('/export/:type', requireAdmin, async (req, res) => {
           SELECT 
             o.date,
             o.direction,
-            o.distance,
             o.weight,
             o.amount,
             o.company,
