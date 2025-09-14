@@ -2,6 +2,7 @@ const express = require('express');
 const { pool } = require('../config/database');
 const { authenticateToken, requireAdmin, requireDriver, logRequest, checkUserActive } = require('../middleware/auth');
 const nodemailer = require('nodemailer');
+const sgMail = require('@sendgrid/mail');
 const { logUserAction, logError } = require('../utils/logger');
 
 const router = express.Router();
@@ -334,22 +335,40 @@ router.patch('/:id/status', async (req, res) => {
             toCity
           });
 
-          const transporter = nodemailer.createTransport({
-            service: 'gmail',
-            auth: {
-              user: 'gruzoperevozki436@gmail.com',
-              pass: 'epah mwoe ynia xfjc'
-            }
-          });
+          // Пробуем SendGrid сначала (для Railway)
+          if (process.env.SENDGRID_API_KEY) {
+            console.log('📧 Отправляем через SendGrid...');
+            sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+            
+            const msg = {
+              to: toEmail,
+              from: 'gruzoperevozki436@gmail.com',
+              subject,
+              text
+            };
+            
+            const mailInfo = await sgMail.send(msg);
+            console.log('✅ Email отправлен через SendGrid:', mailInfo[0].statusCode);
+          } else {
+            // Fallback на nodemailer (для локальной разработки)
+            console.log('📧 Отправляем через nodemailer...');
+            const transporter = nodemailer.createTransport({
+              service: 'gmail',
+              auth: {
+                user: 'gruzoperevozki436@gmail.com',
+                pass: 'epah mwoe ynia xfjc'
+              }
+            });
 
-          const mailInfo = await transporter.sendMail({
-            from: 'gruzoperevozki436@gmail.com',
-            to: toEmail,
-            subject,
-            text
-          });
-          
-          console.log('✅ Email отправлен успешно:', mailInfo.messageId);
+            const mailInfo = await transporter.sendMail({
+              from: 'gruzoperevozki436@gmail.com',
+              to: toEmail,
+              subject,
+              text
+            });
+            
+            console.log('✅ Email отправлен через nodemailer:', mailInfo.messageId);
+          }
         } else {
           console.log('⚠️ У заявки нет email адреса');
         }
