@@ -310,12 +310,12 @@ router.patch('/:id/status', async (req, res) => {
       return res.status(404).json({ error: 'Заявка не найдена' });
     }
 
-    // Если статус стал "completed" — отправляем запрос на рекомендацию в Telegram бот
+    // Если статус стал "completed" — отправляем уведомление в Telegram бот
     try {
       if (status === 'completed') {
         const order = result.rows[0];
         const toEmail = order.email;
-        console.log('📱 Попытка отправки запроса на рекомендацию в Telegram бот для заявки:', {
+        console.log('📱 Попытка отправки уведомления о выполненной заявке в Telegram бот:', {
           orderId: id,
           email: toEmail,
           direction: order.direction
@@ -327,14 +327,14 @@ router.patch('/:id/status', async (req, res) => {
           const [fromCity, toCity] = firstLine.split(' → ');
           const routeInfo = `${fromCity || ''} - ${toCity || ''}`;
 
-          console.log('📝 Данные для запроса рекомендации в Telegram:', {
+          console.log('📝 Данные для уведомления в Telegram:', {
             email: toEmail,
             routeInfo,
             fromCity,
             toCity
           });
 
-          // Отправляем запрос на рекомендацию в Telegram бот
+          // Отправляем уведомление в Telegram бот
           const telegramResult = await sendCompletionEmail(toEmail, routeInfo, {
             orderId: id,
             company: order.company,
@@ -344,18 +344,18 @@ router.patch('/:id/status', async (req, res) => {
           });
 
           if (telegramResult.success) {
-            console.log('✅ Запрос на рекомендацию успешно отправлен в Telegram бот');
+            console.log('✅ Уведомление о выполненной заявке успешно отправлено в Telegram бот');
           } else {
-            console.log('❌ Ошибка отправки запроса в Telegram бот:', telegramResult.error);
+            console.log('❌ Ошибка отправки уведомления в Telegram бот:', telegramResult.error);
           }
         } else {
-          console.log('⚠️ У заявки нет email адреса, запрос на рекомендацию не отправлен');
+          console.log('⚠️ У заявки нет email адреса, уведомление не отправлено');
         }
       }
     } catch (telegramErr) {
       // Не валим основной запрос из-за Telegram; просто логируем
-      console.error('❌ Ошибка при отправке запроса в Telegram бот:', telegramErr);
-      logError(telegramErr, { route: `/orders/${id}/status`, note: 'telegram_recommendation_request_failed' });
+      console.error('❌ Ошибка при отправке уведомления в Telegram бот:', telegramErr);
+      logError(telegramErr, { route: `/orders/${id}/status`, note: 'telegram_notification_failed' });
     }
 
     // Логируем изменение статуса
