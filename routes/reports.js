@@ -86,7 +86,7 @@ router.get('/orders-by-date', requireAdmin, async (req, res) => {
         SUM(CASE WHEN o.status = 'completed' THEN o.amount ELSE 0 END) as revenue,
         SUM(CASE WHEN o.status NOT IN ('completed','cancelled') THEN o.amount ELSE 0 END) as expected_revenue,
         AVG(CASE WHEN o.status = 'completed' THEN o.amount ELSE NULL END) as avg_amount,
-        SUM(CASE WHEN o.status = 'completed' THEN o.distance ELSE 0 END) as total_distance
+        0 as total_distance
       FROM orders o
       WHERE o.date BETWEEN $1 AND $2
       GROUP BY ${groupClause}
@@ -170,7 +170,7 @@ router.get('/vehicles-performance', requireAdmin, async (req, res) => {
         COUNT(CASE WHEN o.status = 'completed' THEN 1 END) as completed_orders,
         SUM(CASE WHEN o.status = 'completed' THEN o.amount ELSE 0 END) as total_revenue,
         AVG(CASE WHEN o.status = 'completed' THEN o.amount ELSE NULL END) as avg_order_amount,
-        SUM(CASE WHEN o.status = 'completed' THEN o.distance ELSE 0 END) as total_distance
+        0 as total_distance
       FROM vehicles v
       LEFT JOIN users u ON v.driver_id = u.id
       LEFT JOIN orders o ON u.id = o.driver_id ${dateFilter}
