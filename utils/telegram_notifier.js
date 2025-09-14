@@ -114,7 +114,7 @@ async function sendRecommendationEmail(emailAddress, routeInfo, orderData = {}) 
     }
 
     // Создание email сообщения
-    const emailSubject = `Заявка по маршруту ${routeInfo} выполнена`;
+    const emailSubject = `Заявка по маршруту "${routeInfo}" выполнена ✅`;
     const emailBody = `
     <html>
         <body>
