@@ -32,11 +32,22 @@ async function sendTelegramNotification(emailAddress, routeInfo, orderData = {})
     });
 
     const telegramUrl = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
+    
+    console.log('📤 Отправляем запрос в Telegram API:', {
+      url: telegramUrl,
+      message: message
+    });
+    
     const response = await axios.post(telegramUrl, message, {
       timeout: 15000,
       headers: {
         'Content-Type': 'application/json'
       }
+    });
+
+    console.log('📥 Ответ от Telegram API:', {
+      status: response.status,
+      data: response.data
     });
 
     if (response.data.ok) {
@@ -119,11 +130,21 @@ async function sendRecommendationEmail(emailAddress, routeInfo, orderData = {}) 
     const encodedEmail = Buffer.from(email).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
     // Отправка email
+    console.log('📤 Отправляем email через Gmail API:', {
+      to: emailAddress,
+      subject: emailSubject
+    });
+    
     const result = await gmail.users.messages.send({
       userId: 'me',
       requestBody: {
         raw: encodedEmail
       }
+    });
+
+    console.log('📥 Ответ от Gmail API:', {
+      messageId: result.data.id,
+      result: result.data
     });
 
     console.log('✅ Email с рекомендацией успешно отправлен через Gmail API');
