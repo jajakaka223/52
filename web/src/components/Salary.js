@@ -81,18 +81,25 @@ const Salary = ({ userPermissions, user }) => {
           Number(record.amount) < 0
         );
         
-        // Создаем вычеты из записей accounting
-        const serverDeductions = salaryExpenses.map(expense => ({
-          id: expense.id,
-          date: expense.date,
-          amount: Math.abs(Number(expense.amount)),
-          comment: expense.description?.replace('Зарплатный вычет: ', '') || ''
-        }));
-        
-        // Распределяем вычеты по водителям (пока все вычеты для всех водителей)
+        // Создаем вычеты из записей accounting и фильтруем по водителям
         const allDeductions = {};
         ds.forEach(driver => {
-          allDeductions[driver.id] = serverDeductions;
+          // Фильтруем вычеты для конкретного водителя
+          const driverDeductions = salaryExpenses
+            .filter(expense => {
+              // Извлекаем ID водителя из описания (формат: "Зарплатный вычет: [комментарий] (водитель: ID)")
+              const driverIdMatch = expense.description?.match(/водитель: (\d+)\)/);
+              const driverId = driverIdMatch ? parseInt(driverIdMatch[1]) : null;
+              return driverId === driver.id;
+            })
+            .map(expense => ({
+              id: expense.id,
+              date: expense.date,
+              amount: Math.abs(Number(expense.amount)),
+              comment: expense.description?.replace(/Зарплатный вычет: (.+) \(водитель: \d+\)/, '$1') || ''
+            }));
+          
+          allDeductions[driver.id] = driverDeductions;
         });
         
         // Устанавливаем только серверные данные
@@ -150,7 +157,7 @@ const Salary = ({ userPermissions, user }) => {
         vehicleId: null,
         date: entry.date,
         amount: -entry.amount,
-        description: `Зарплатный вычет: ${entry.comment}`,
+        description: `Зарплатный вычет: ${entry.comment} (водитель: ${driverId})`,
         category: 'Зарплата',
         mileage: null,
       };
@@ -197,7 +204,7 @@ const Salary = ({ userPermissions, user }) => {
     new: 'default',
     assigned: 'processing',
     in_progress: 'warning',
-    unloaded: 'processing',
+    unloaded: 'success',
     completed: 'success',
     cancelled: 'error'
   };
