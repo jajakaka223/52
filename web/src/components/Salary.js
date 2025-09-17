@@ -89,29 +89,27 @@ const Salary = ({ userPermissions, user }) => {
           comment: expense.description?.replace('Зарплатный вычет: ', '') || ''
         }));
         
-        // Объединяем локальные и серверные вычеты, убираем дубликаты
+        // Загружаем текущие локальные вычеты
         const currentAdjustments = JSON.parse(localStorage.getItem('salary_adjustments_v1') || '{}');
-        const allDeductions = {};
         
-        // Собираем все вычеты по водителям
+        // Собираем все вычеты по водителям, приоритет у локальных
         ds.forEach(driver => {
           const localDeductions = Array.isArray(currentAdjustments[driver.id]) ? currentAdjustments[driver.id] : [];
-          const driverServerDeductions = serverDeductions.filter(deduction => 
-            // Предполагаем, что вычет принадлежит водителю по дате или другим критериям
-            // В реальном приложении нужно добавить поле driver_id в accounting
-            true // Пока берем все вычеты для всех водителей
+          
+          // Добавляем только те серверные вычеты, которых нет в локальных
+          const localIds = new Set(localDeductions.map(d => d.id));
+          const newServerDeductions = serverDeductions.filter(deduction => 
+            !localIds.has(deduction.id)
           );
           
-          const uniqueDeductions = [...localDeductions, ...driverServerDeductions].filter((deduction, index, self) => 
-            index === self.findIndex(d => d.id === deduction.id)
-          );
-          
-          allDeductions[driver.id] = uniqueDeductions;
+          // Объединяем локальные с новыми серверными
+          const allDriverDeductions = [...localDeductions, ...newServerDeductions];
+          currentAdjustments[driver.id] = allDriverDeductions;
         });
         
-        // Обновляем localStorage
-        localStorage.setItem('salary_adjustments_v1', JSON.stringify(allDeductions));
-        setAdjustments(allDeductions);
+        // Обновляем localStorage и состояние
+        localStorage.setItem('salary_adjustments_v1', JSON.stringify(currentAdjustments));
+        setAdjustments(currentAdjustments);
         
       } catch (e) {
         console.warn('Failed to sync deductions with server:', e);

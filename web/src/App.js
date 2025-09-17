@@ -23,9 +23,10 @@ const { Header, Sider, Content } = Layout;
 
 function App() {
   dayjs.locale('ru');
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(true); // Сначала показываем главную страницу
   const [user, setUser] = useState(null);
   const [userPermissions, setUserPermissions] = useState(null);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true); // Флаг проверки авторизации
   const [selectedMenu, setSelectedMenu] = useState(() => localStorage.getItem('ui_selected_menu') || 'dashboard');
   const [theme, setTheme] = useState(() => localStorage.getItem('ui_theme') || 'light');
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -34,6 +35,7 @@ function App() {
   const handleLogin = (userData) => {
     setUser(userData);
     setIsLoggedIn(true);
+    setIsCheckingAuth(false);
     message.success('Вход выполнен успешно!');
     // Загружаем права сразу после входа
     if (userData?.role) {
@@ -131,25 +133,50 @@ function App() {
     setUser(null);
     setUserPermissions(null);
     setSelectedMenu('dashboard');
+    setIsCheckingAuth(false);
     message.info('Выход выполнен');
   };
 
-  // авто-восстановление сессии по токену
+  // авто-восстановление сессии по токену (как в мобильном приложении)
   useEffect(() => {
-    const token = localStorage.getItem('auth_token');
-    const savedUser = localStorage.getItem('auth_user');
-    if (!token) return;
-    try {
-      if (savedUser) setUser(JSON.parse(savedUser));
-    } catch (_) {}
-    api.get('/api/auth/verify')
-      .then(() => setIsLoggedIn(true))
-      .catch(() => {
-        // токен недействителен — очищаем
-        localStorage.removeItem('auth_token');
-        localStorage.removeItem('auth_user');
-      });
-  }, []);
+    const checkAuth = async () => {
+      setIsCheckingAuth(true);
+      
+      const token = localStorage.getItem('auth_token');
+      const savedUser = localStorage.getItem('auth_user');
+      
+      if (!token || !savedUser) {
+        // Нет токена или пользователя - показываем логин
+        setIsLoggedIn(false);
+        setUser(null);
+        setIsCheckingAuth(false);
+        return;
+      }
+      
+      try {
+        // Восстанавливаем пользователя
+        const userData = JSON.parse(savedUser);
+        setUser(userData);
+        
+        // Проверяем токен на сервере
+        await api.get('/api/auth/verify');
+        setIsLoggedIn(true);
+        
+        // Загружаем права пользователя
+        if (userData?.role) {
+          fetchUserPermissions(userData.role);
+        }
+      } catch (error) {
+        console.warn('Token verification failed, but keeping user for offline mode:', error);
+        // В офлайн режиме оставляем пользователя залогиненным
+        setIsLoggedIn(true);
+      } finally {
+        setIsCheckingAuth(false);
+      }
+    };
+    
+    checkAuth();
+  }, [fetchUserPermissions]);
 
   // Загружаем права пользователя при изменении пользователя
   useEffect(() => {
@@ -216,6 +243,24 @@ function App() {
         return <Dashboard user={user} theme={theme} userPermissions={userPermissions} />;
     }
   };
+
+  // Показываем загрузку во время проверки авторизации
+  if (isCheckingAuth) {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '100vh',
+        background: theme === 'dark' ? '#0f0f0f' : '#f5f5f5'
+      }}>
+        <div style={{ textAlign: 'center', color: theme === 'dark' ? '#fff' : '#000' }}>
+          <div style={{ fontSize: '18px', marginBottom: '16px' }}>52 EXPRESS</div>
+          <div>Загрузка...</div>
+        </div>
+      </div>
+    );
+  }
 
   if (!isLoggedIn) {
     return <Login onLogin={handleLogin} />;

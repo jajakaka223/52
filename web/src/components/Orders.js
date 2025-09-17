@@ -11,7 +11,7 @@ const statusToColor = {
   new: 'default',
   assigned: 'processing',
   in_progress: 'warning',
-  unloaded: 'processing',
+  unloaded: 'success',
   completed: 'success',
   cancelled: 'error'
 };
