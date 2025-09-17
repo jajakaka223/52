@@ -30,17 +30,20 @@ const Salary = ({ userPermissions, user }) => {
     const now = dayjs();
     const d = now.date();
     if (d < 10) {
+      // Период с 25 предыдущего месяца по 9 текущего
       const start = now.subtract(1, 'month').date(25);
-      const end = now.date(10);
+      const end = now.date(9);
       return [start, end];
     }
     if (d >= 25) {
+      // Период с 25 текущего месяца по 9 следующего
       const start = now.date(25);
-      const end = now.add(1, 'month').date(10);
+      const end = now.add(1, 'month').date(9);
       return [start, end];
     }
+    // Период с 10 по 24 текущего месяца
     const start = now.date(10);
-    const end = now.date(25);
+    const end = now.date(24);
     return [start, end];
   }, []);
 
@@ -81,18 +84,25 @@ const Salary = ({ userPermissions, user }) => {
           Number(record.amount) < 0
         );
         
-        // Создаем вычеты из записей accounting
-        const serverDeductions = salaryExpenses.map(expense => ({
-          id: expense.id,
-          date: expense.date,
-          amount: Math.abs(Number(expense.amount)),
-          comment: expense.description?.replace('Зарплатный вычет: ', '') || ''
-        }));
-        
-        // Распределяем вычеты по водителям (пока все вычеты для всех водителей)
+        // Создаем вычеты из записей accounting и привязываем к конкретным водителям
         const allDeductions = {};
         ds.forEach(driver => {
-          allDeductions[driver.id] = serverDeductions;
+          allDeductions[driver.id] = [];
+        });
+        
+        salaryExpenses.forEach(expense => {
+          // Извлекаем ID водителя из описания (формат: "Зарплатный вычет: [комментарий] (водитель: ID)")
+          const driverIdMatch = expense.description?.match(/водитель: (\d+)\)/);
+          const driverId = driverIdMatch ? parseInt(driverIdMatch[1]) : null;
+          
+          if (driverId && allDeductions[driverId]) {
+            allDeductions[driverId].push({
+              id: expense.id,
+              date: expense.date,
+              amount: Math.abs(Number(expense.amount)),
+              comment: expense.description?.replace(/Зарплатный вычет: (.+) \(водитель: \d+\)/, '$1') || ''
+            });
+          }
         });
         
         // Устанавливаем только серверные данные
@@ -144,13 +154,13 @@ const Salary = ({ userPermissions, user }) => {
       comment: vals.comment || ''
     };
     try {
-      // Добавляем вычет в расходы по категории "Зарплата"
+      // Добавляем вычет в расходы по категории "Зарплата" с привязкой к водителю
       const payload = {
         type: 'expense',
         vehicleId: null,
         date: entry.date,
         amount: -entry.amount,
-        description: `Зарплатный вычет: ${entry.comment}`,
+        description: `Зарплатный вычет: ${entry.comment} (водитель: ${driverId})`,
         category: 'Зарплата',
         mileage: null,
       };
@@ -180,13 +190,34 @@ const Salary = ({ userPermissions, user }) => {
 
   const deleteAdjustment = async (driverId, id) => {
     try {
+      // Сначала получаем информацию о вычете для возврата суммы в бюджет
+      const deduction = adjustments[driverId]?.find(adj => adj.id === id);
+      
       // Удаляем запись из расходов через API
       await api.delete(`/api/accounting/${id}`, { headers });
+      
+      // Возвращаем сумму в бюджет
+      if (deduction) {
+        const balances = JSON.parse(localStorage.getItem('budget_balances_v1') || 'null') || { tax: 0, salary: 0, repair: 0, fuel: 0, safe: 0, profit: 0 };
+        const round2 = n => Math.round(Number(n||0)*100)/100;
+        balances.salary = round2(Number(balances.salary || 0) + deduction.amount);
+        localStorage.setItem('budget_balances_v1', JSON.stringify(balances));
+        
+        // Добавляем запись в историю бюджета
+        const hist = JSON.parse(localStorage.getItem('budget_history_v1') || '[]');
+        hist.unshift({
+          ts: Date.now(),
+          category: 'Зарплата',
+          delta: deduction.amount,
+          comment: `Возврат зарплатного вычета: ${deduction.comment || 'Без комментария'}`
+        });
+        localStorage.setItem('budget_history_v1', JSON.stringify(hist.slice(0, 500)));
+      }
       
       // Перезагружаем данные с сервера
       await fetchAll();
       
-      message.success('Запись удалена');
+      message.success('Запись удалена и сумма возвращена в бюджет');
     } catch (e) {
       console.error('Ошибка удаления вычета:', e);
       message.error('Не удалось удалить запись');
