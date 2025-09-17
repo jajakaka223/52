@@ -244,23 +244,6 @@ function App() {
     }
   };
 
-  // Показываем загрузку во время проверки авторизации
-  if (isCheckingAuth) {
-    return (
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        height: '100vh',
-        background: theme === 'dark' ? '#0f0f0f' : '#f5f5f5'
-      }}>
-        <div style={{ textAlign: 'center', color: theme === 'dark' ? '#fff' : '#000' }}>
-          <div style={{ fontSize: '18px', marginBottom: '16px' }}>52 EXPRESS</div>
-          <div>Загрузка...</div>
-        </div>
-      </div>
-    );
-  }
 
   if (!isLoggedIn) {
     return <Login onLogin={handleLogin} />;

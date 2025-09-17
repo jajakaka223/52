@@ -72,7 +72,7 @@ const Salary = ({ userPermissions, user }) => {
       setOrders(oRes.data?.orders || []);
       if (!activeDriverId && ds.length) setActiveDriverId(ds[0].id);
       
-      // Синхронизируем вычеты с сервера (как в мобильном приложении)
+      // Загружаем вычеты только с сервера (без локального хранения)
       try {
         const accountingData = aRes.data;
         const salaryExpenses = (accountingData.records || []).filter(record => 
@@ -89,30 +89,18 @@ const Salary = ({ userPermissions, user }) => {
           comment: expense.description?.replace('Зарплатный вычет: ', '') || ''
         }));
         
-        // Загружаем текущие локальные вычеты
-        const currentAdjustments = JSON.parse(localStorage.getItem('salary_adjustments_v1') || '{}');
-        
-        // Собираем все вычеты по водителям, приоритет у локальных
+        // Распределяем вычеты по водителям (пока все вычеты для всех водителей)
+        const allDeductions = {};
         ds.forEach(driver => {
-          const localDeductions = Array.isArray(currentAdjustments[driver.id]) ? currentAdjustments[driver.id] : [];
-          
-          // Добавляем только те серверные вычеты, которых нет в локальных
-          const localIds = new Set(localDeductions.map(d => d.id));
-          const newServerDeductions = serverDeductions.filter(deduction => 
-            !localIds.has(deduction.id)
-          );
-          
-          // Объединяем локальные с новыми серверными
-          const allDriverDeductions = [...localDeductions, ...newServerDeductions];
-          currentAdjustments[driver.id] = allDriverDeductions;
+          allDeductions[driver.id] = serverDeductions;
         });
         
-        // Обновляем localStorage и состояние
-        localStorage.setItem('salary_adjustments_v1', JSON.stringify(currentAdjustments));
-        setAdjustments(currentAdjustments);
+        // Устанавливаем только серверные данные
+        setAdjustments(allDeductions);
         
       } catch (e) {
-        console.warn('Failed to sync deductions with server:', e);
+        console.warn('Failed to load deductions from server:', e);
+        setAdjustments({});
       }
       
     } catch (_) {}
@@ -151,110 +139,56 @@ const Salary = ({ userPermissions, user }) => {
     if (!vals) return;
     const driverId = adjModal.driverId;
     const entry = {
-      id: Date.now(),
       date: vals.date ? vals.date.format('YYYY-MM-DD') : null,
       amount: Math.abs(Number(vals.amount || 0)),
       comment: vals.comment || ''
     };
     try {
-      const next = { ...(adjustments || {}) };
-      const list = Array.isArray(next[driverId]) ? next[driverId] : [];
-      list.push(entry);
-      next[driverId] = list;
-      localStorage.setItem('salary_adjustments_v1', JSON.stringify(next));
-      setAdjustments(next);
-      
       // Добавляем вычет в расходы по категории "Зарплата"
-      try {
-        const token = localStorage.getItem('auth_token');
-        const headers = token ? { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } : {};
-        const payload = {
-          type: 'expense',
-          vehicleId: null,
-          date: entry.date,
-          amount: -entry.amount,
-          description: `Зарплатный вычет: ${entry.comment}`,
-          category: 'Зарплата',
-          mileage: null,
-        };
-        await api.post('/api/accounting', payload, { headers });
-        
-        // Обновляем бюджет
-        const balances = JSON.parse(localStorage.getItem('budget_balances_v1') || 'null') || { tax: 0, salary: 0, repair: 0, fuel: 0, safe: 0, profit: 0 };
-        const round2 = n => Math.round(Number(n||0)*100)/100;
-        balances.salary = round2(Number(balances.salary || 0) - entry.amount);
-        localStorage.setItem('budget_balances_v1', JSON.stringify(balances));
-        
-        const hist = JSON.parse(localStorage.getItem('budget_history_v1') || '[]');
-        hist.unshift({ ts: Date.now(), category: 'Зарплата', delta: -entry.amount, comment: `Зарплатный вычет: ${entry.comment}` });
-        localStorage.setItem('budget_history_v1', JSON.stringify(hist.slice(0, 500)));
-      } catch (e) {
-        console.error('Ошибка добавления в расходы:', e);
-      }
+      const payload = {
+        type: 'expense',
+        vehicleId: null,
+        date: entry.date,
+        amount: -entry.amount,
+        description: `Зарплатный вычет: ${entry.comment}`,
+        category: 'Зарплата',
+        mileage: null,
+      };
+      await api.post('/api/accounting', payload, { headers });
+      
+      // Обновляем бюджет
+      const balances = JSON.parse(localStorage.getItem('budget_balances_v1') || 'null') || { tax: 0, salary: 0, repair: 0, fuel: 0, safe: 0, profit: 0 };
+      const round2 = n => Math.round(Number(n||0)*100)/100;
+      balances.salary = round2(Number(balances.salary || 0) - entry.amount);
+      localStorage.setItem('budget_balances_v1', JSON.stringify(balances));
+      
+      const hist = JSON.parse(localStorage.getItem('budget_history_v1') || '[]');
+      hist.unshift({ ts: Date.now(), category: 'Зарплата', delta: -entry.amount, comment: `Зарплатный вычет: ${entry.comment}` });
+      localStorage.setItem('budget_history_v1', JSON.stringify(hist.slice(0, 500)));
+      
+      // Перезагружаем данные с сервера
+      await fetchAll();
       
       setAdjModal({ open: false, driverId: null });
       adjForm.resetFields();
       message.success('Запись добавлена');
-    } catch (_) {
+    } catch (e) {
+      console.error('Ошибка добавления вычета:', e);
       message.error('Не удалось сохранить запись');
     }
   };
 
   const deleteAdjustment = async (driverId, id) => {
     try {
-      const next = { ...(adjustments || {}) };
-      const list = Array.isArray(next[driverId]) ? next[driverId] : [];
+      // Удаляем запись из расходов через API
+      await api.delete(`/api/accounting/${id}`, { headers });
       
-      // Найти удаляемую запись для получения суммы
-      const deletedRecord = list.find(x => x.id === id);
-      if (deletedRecord && deletedRecord.amount) {
-        // Удаляем соответствующую запись из расходов через API
-        try {
-          const token = localStorage.getItem('auth_token');
-          const headers = token ? { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } : {};
-          
-          // Ищем запись в расходах по описанию и сумме
-          const response = await api.get('/api/accounting', { headers });
-          if (response.data && response.data.success) {
-            const expenses = response.data.accounting || [];
-            const matchingExpense = expenses.find(expense => 
-              expense.description === `Зарплатный вычет: ${deletedRecord.comment}` &&
-              Math.abs(expense.amount) === deletedRecord.amount &&
-              expense.category === 'Зарплата'
-            );
-            
-            if (matchingExpense) {
-              await api.delete(`/api/accounting/${matchingExpense.id}`, { headers });
-            }
-          }
-        } catch (e) {
-          console.error('Ошибка удаления из расходов:', e);
-        }
-        
-        // Возвращаем сумму обратно в бюджет
-        const currentBalances = JSON.parse(localStorage.getItem('budget_balances_v1') || '{}');
-        const newBalances = {
-          ...currentBalances,
-          salary: (currentBalances.salary || 0) + deletedRecord.amount
-        };
-        localStorage.setItem('budget_balances_v1', JSON.stringify(newBalances));
-        
-        // Добавляем запись в историю бюджета
-        const history = JSON.parse(localStorage.getItem('budget_history_v1') || '[]');
-        history.unshift({
-          ts: Date.now(),
-          category: 'Зарплата',
-          delta: deletedRecord.amount,
-          comment: `Возврат зарплатного вычета: ${deletedRecord.comment || 'Без комментария'}`
-        });
-        localStorage.setItem('budget_history_v1', JSON.stringify(history.slice(0, 500)));
-      }
+      // Перезагружаем данные с сервера
+      await fetchAll();
       
-      next[driverId] = list.filter(x => x.id !== id);
-      localStorage.setItem('salary_adjustments_v1', JSON.stringify(next));
-      setAdjustments(next);
-      message.success('Запись удалена и сумма возвращена в бюджет');
-    } catch (_) {
+      message.success('Запись удалена');
+    } catch (e) {
+      console.error('Ошибка удаления вычета:', e);
       message.error('Не удалось удалить запись');
     }
   };
