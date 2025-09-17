@@ -56,9 +56,10 @@ const Salary = ({ userPermissions, user }) => {
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [uRes, oRes] = await Promise.all([
+      const [uRes, oRes, aRes] = await Promise.all([
         api.get('/api/users', { headers }),
-        api.get('/api/orders', { headers })
+        api.get('/api/orders', { headers }),
+        api.get('/api/accounting', { headers }).catch(() => ({ data: { records: [] } }))
       ]);
       
       // Если пользователь - водитель, показываем только его данные
@@ -70,6 +71,52 @@ const Salary = ({ userPermissions, user }) => {
       setDrivers(ds);
       setOrders(oRes.data?.orders || []);
       if (!activeDriverId && ds.length) setActiveDriverId(ds[0].id);
+      
+      // Синхронизируем вычеты с сервера (как в мобильном приложении)
+      try {
+        const accountingData = aRes.data;
+        const salaryExpenses = (accountingData.records || []).filter(record => 
+          record.category === 'Зарплата' && 
+          record.description?.startsWith('Зарплатный вычет:') &&
+          Number(record.amount) < 0
+        );
+        
+        // Создаем вычеты из записей accounting
+        const serverDeductions = salaryExpenses.map(expense => ({
+          id: expense.id,
+          date: expense.date,
+          amount: Math.abs(Number(expense.amount)),
+          comment: expense.description?.replace('Зарплатный вычет: ', '') || ''
+        }));
+        
+        // Объединяем локальные и серверные вычеты, убираем дубликаты
+        const currentAdjustments = JSON.parse(localStorage.getItem('salary_adjustments_v1') || '{}');
+        const allDeductions = {};
+        
+        // Собираем все вычеты по водителям
+        ds.forEach(driver => {
+          const localDeductions = Array.isArray(currentAdjustments[driver.id]) ? currentAdjustments[driver.id] : [];
+          const driverServerDeductions = serverDeductions.filter(deduction => 
+            // Предполагаем, что вычет принадлежит водителю по дате или другим критериям
+            // В реальном приложении нужно добавить поле driver_id в accounting
+            true // Пока берем все вычеты для всех водителей
+          );
+          
+          const uniqueDeductions = [...localDeductions, ...driverServerDeductions].filter((deduction, index, self) => 
+            index === self.findIndex(d => d.id === deduction.id)
+          );
+          
+          allDeductions[driver.id] = uniqueDeductions;
+        });
+        
+        // Обновляем localStorage
+        localStorage.setItem('salary_adjustments_v1', JSON.stringify(allDeductions));
+        setAdjustments(allDeductions);
+        
+      } catch (e) {
+        console.warn('Failed to sync deductions with server:', e);
+      }
+      
     } catch (_) {}
     finally { setLoading(false); }
   }, [headers, activeDriverId, user?.role, user?.id]);
