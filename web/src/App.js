@@ -23,10 +23,9 @@ const { Header, Sider, Content } = Layout;
 
 function App() {
   dayjs.locale('ru');
-  const [isLoggedIn, setIsLoggedIn] = useState(true); // Сначала показываем главную страницу
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [user, setUser] = useState(null);
   const [userPermissions, setUserPermissions] = useState(null);
-  const [isCheckingAuth, setIsCheckingAuth] = useState(true); // Флаг проверки авторизации
   const [selectedMenu, setSelectedMenu] = useState(() => localStorage.getItem('ui_selected_menu') || 'dashboard');
   const [theme, setTheme] = useState(() => localStorage.getItem('ui_theme') || 'light');
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -35,7 +34,6 @@ function App() {
   const handleLogin = (userData) => {
     setUser(userData);
     setIsLoggedIn(true);
-    setIsCheckingAuth(false);
     message.success('Вход выполнен успешно!');
     // Загружаем права сразу после входа
     if (userData?.role) {
@@ -133,15 +131,12 @@ function App() {
     setUser(null);
     setUserPermissions(null);
     setSelectedMenu('dashboard');
-    setIsCheckingAuth(false);
     message.info('Выход выполнен');
   };
 
-  // авто-восстановление сессии по токену (как в мобильном приложении)
+  // авто-восстановление сессии по токену
   useEffect(() => {
     const checkAuth = async () => {
-      setIsCheckingAuth(true);
-      
       const token = localStorage.getItem('auth_token');
       const savedUser = localStorage.getItem('auth_user');
       
@@ -149,7 +144,6 @@ function App() {
         // Нет токена или пользователя - показываем логин
         setIsLoggedIn(false);
         setUser(null);
-        setIsCheckingAuth(false);
         return;
       }
       
@@ -167,11 +161,12 @@ function App() {
           fetchUserPermissions(userData.role);
         }
       } catch (error) {
-        console.warn('Token verification failed, but keeping user for offline mode:', error);
-        // В офлайн режиме оставляем пользователя залогиненным
-        setIsLoggedIn(true);
-      } finally {
-        setIsCheckingAuth(false);
+        console.warn('Token verification failed:', error);
+        // Если токен недействителен, выходим
+        setIsLoggedIn(false);
+        setUser(null);
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('auth_user');
       }
     };
     
