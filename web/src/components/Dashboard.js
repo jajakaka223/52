@@ -9,6 +9,7 @@ const statusToColor = {
   new: 'default',
   assigned: 'processing',
   in_progress: 'warning',
+  unloaded: 'processing',
   completed: 'success',
   cancelled: 'error'
 };
@@ -16,6 +17,7 @@ const statusToRu = {
   new: 'Новая',
   assigned: 'Назначена',
   in_progress: 'В пути',
+  unloaded: 'Разгрузился',
   completed: 'Выполнена',
   cancelled: 'Отменена'
 };

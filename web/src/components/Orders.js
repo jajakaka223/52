@@ -11,6 +11,7 @@ const statusToColor = {
   new: 'default',
   assigned: 'processing',
   in_progress: 'warning',
+  unloaded: 'processing',
   completed: 'success',
   cancelled: 'error'
 };
@@ -19,12 +20,14 @@ const statusToRu = {
   new: 'Новая',
   assigned: 'Назначена',
   in_progress: 'В пути',
+  unloaded: 'Разгрузился',
   completed: 'Выполнена',
   cancelled: 'Отменена'
 };
 
 const statusRank = {
-  completed: 5,
+  completed: 6,
+  unloaded: 5,
   in_progress: 4,
   assigned: 3,
   new: 2,
@@ -448,7 +451,7 @@ const Orders = ({ theme, userPermissions }) => {
   ];
 
   // Фильтр по статусам
-  const allStatuses = ['new','assigned','in_progress','completed','cancelled'];
+  const allStatuses = ['new','assigned','in_progress','unloaded','completed','cancelled'];
   const [visibleStatuses, setVisibleStatuses] = useState(allStatuses);
   const filteredOrders = useMemo(() => (
     Array.isArray(orders) ? orders.filter(o => visibleStatuses.includes(o.status || 'new')) : []
@@ -819,6 +822,7 @@ const Orders = ({ theme, userPermissions }) => {
           <Option value="new">Новая</Option>
           <Option value="assigned">Назначена</Option>
           <Option value="in_progress">В пути</Option>
+          <Option value="unloaded">Разгрузился</Option>
           <Option value="completed">Выполнена</Option>
           <Option value="cancelled">Отменена</Option>
         </Select>
