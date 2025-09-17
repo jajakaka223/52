@@ -274,7 +274,7 @@ router.patch('/:id/status', async (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
 
-    const allowedStatuses = ['new', 'assigned', 'in_progress', 'completed', 'cancelled'];
+    const allowedStatuses = ['new', 'assigned', 'in_progress', 'unloaded', 'completed', 'cancelled'];
     
     if (!allowedStatuses.includes(status)) {
       return res.status(400).json({ 
