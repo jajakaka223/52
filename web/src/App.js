@@ -131,6 +131,9 @@ function App() {
     setUser(null);
     setUserPermissions(null);
     setSelectedMenu('dashboard');
+    // Очищаем localStorage при выходе
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('auth_user');
     message.info('Выход выполнен');
   };
 

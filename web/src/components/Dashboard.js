@@ -9,7 +9,7 @@ const statusToColor = {
   new: 'default',
   assigned: 'processing',
   in_progress: 'warning',
-  unloaded: 'processing',
+  unloaded: 'success',
   completed: 'success',
   cancelled: 'error'
 };
@@ -70,7 +70,13 @@ const Dashboard = ({ user, theme, userPermissions }) => {
         const token = localStorage.getItem('auth_token');
         const headers = token ? { Authorization: `Bearer ${token}` } : {};
         const res = await api.get('/api/orders', { headers });
-        const orders = Array.isArray(res.data?.orders) ? res.data.orders : [];
+        let orders = Array.isArray(res.data?.orders) ? res.data.orders : [];
+        
+        // Если пользователь - водитель, показываем только его заявки
+        if (user?.role === 'driver') {
+          orders = orders.filter(o => o.driver_id === user.id);
+        }
+        
         const short = orders
           .slice(0, 10)
           .map(o => ({
@@ -115,7 +121,7 @@ const Dashboard = ({ user, theme, userPermissions }) => {
       }
     };
     fetchRecent();
-  }, []);
+  }, [user]);
 
   return (
     <div>

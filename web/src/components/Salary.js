@@ -70,7 +70,12 @@ const Salary = ({ userPermissions, user }) => {
       
       setDrivers(ds);
       setOrders(oRes.data?.orders || []);
-      if (!activeDriverId && ds.length) setActiveDriverId(ds[0].id);
+      // Для водителя устанавливаем его ID как активного, для админа - первого водителя
+      if (user?.role === 'driver') {
+        setActiveDriverId(user.id);
+      } else if (!activeDriverId && ds.length) {
+        setActiveDriverId(ds[0].id);
+      }
       
       // Загружаем вычеты только с сервера (без локального хранения)
       try {
