@@ -44,25 +44,41 @@ const Dashboard = ({ user, theme, userPermissions }) => {
         const token = localStorage.getItem('auth_token');
         const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
-        const [usersRes, vehiclesRes, ordersRes] = await Promise.all([
-          api.get('/api/users/stats/overview', { headers }),
-          api.get('/api/vehicles/stats/overview', { headers }),
-          api.get('/api/reports/overview', { headers }),
-        ]);
+        if (user?.role === 'driver') {
+          // Для водителя загружаем только его заявки
+          const ordersRes = await api.get('/api/orders', { headers });
+          const orders = Array.isArray(ordersRes.data?.orders) ? ordersRes.data.orders : [];
+          const driverOrders = orders.filter(o => o.driver_id === user.id);
+          const completedOrders = driverOrders.filter(o => o.status === 'completed');
 
-        setStats({
-          totalUsers: Number(usersRes?.data?.stats?.total_users || 0),
-          totalVehicles: Number(vehiclesRes?.data?.stats?.total_vehicles || 0),
-          totalOrders: Number(ordersRes?.data?.stats?.total_orders || 0),
-          completedOrders: Number(ordersRes?.data?.stats?.completed_orders || 0),
-        });
+          setStats({
+            totalUsers: 0,
+            totalVehicles: 0,
+            totalOrders: driverOrders.length,
+            completedOrders: completedOrders.length,
+          });
+        } else {
+          // Для администратора загружаем общую статистику
+          const [usersRes, vehiclesRes, ordersRes] = await Promise.all([
+            api.get('/api/users/stats/overview', { headers }),
+            api.get('/api/vehicles/stats/overview', { headers }),
+            api.get('/api/reports/overview', { headers }),
+          ]);
+
+          setStats({
+            totalUsers: Number(usersRes?.data?.stats?.total_users || 0),
+            totalVehicles: Number(vehiclesRes?.data?.stats?.total_vehicles || 0),
+            totalOrders: Number(ordersRes?.data?.stats?.total_orders || 0),
+            completedOrders: Number(ordersRes?.data?.stats?.completed_orders || 0),
+          });
+        }
       } catch (error) {
         // тихо игнорируем, показывая нули при ошибке
       }
     };
 
     fetchStats();
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     const fetchRecent = async () => {

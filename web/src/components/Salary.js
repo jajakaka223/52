@@ -88,14 +88,15 @@ const Salary = ({ userPermissions, user }) => {
         
         // Создаем вычеты из записей accounting и фильтруем по водителям
         const allDeductions = {};
-        ds.forEach(driver => {
-          // Фильтруем вычеты для конкретного водителя
+        
+        // Если пользователь - водитель, обрабатываем только его вычеты
+        if (user?.role === 'driver') {
           const driverDeductions = salaryExpenses
             .filter(expense => {
               // Извлекаем ID водителя из описания (формат: "Зарплатный вычет: [комментарий] (водитель: ID)")
               const driverIdMatch = expense.description?.match(/водитель: (\d+)\)/);
               const driverId = driverIdMatch ? parseInt(driverIdMatch[1]) : null;
-              return driverId === driver.id;
+              return driverId === user.id;
             })
             .map(expense => ({
               id: expense.id,
@@ -104,8 +105,26 @@ const Salary = ({ userPermissions, user }) => {
               comment: expense.description?.replace(/Зарплатный вычет: (.+) \(водитель: \d+\)/, '$1') || ''
             }));
           
-          allDeductions[driver.id] = driverDeductions;
-        });
+          allDeductions[user.id] = driverDeductions;
+        } else {
+          // Для администратора обрабатываем всех водителей
+          ds.forEach(driver => {
+            const driverDeductions = salaryExpenses
+              .filter(expense => {
+                const driverIdMatch = expense.description?.match(/водитель: (\d+)\)/);
+                const driverId = driverIdMatch ? parseInt(driverIdMatch[1]) : null;
+                return driverId === driver.id;
+              })
+              .map(expense => ({
+                id: expense.id,
+                date: expense.date,
+                amount: Math.abs(Number(expense.amount)),
+                comment: expense.description?.replace(/Зарплатный вычет: (.+) \(водитель: \d+\)/, '$1') || ''
+              }));
+            
+            allDeductions[driver.id] = driverDeductions;
+          });
+        }
         
         // Устанавливаем только серверные данные
         setAdjustments(allDeductions);
@@ -135,8 +154,8 @@ const Salary = ({ userPermissions, user }) => {
   const dataByDriver = useMemo(() => {
     const map = new Map();
     for (const o of filteredOrders) {
-      // Убираем фильтр по статусу - показываем все заявки
-      if (!o.driver_id) continue;
+      // Исключаем отмененные заявки
+      if (!o.driver_id || o.status === 'cancelled') continue;
       const arr = map.get(o.driver_id) || [];
       arr.push(o);
       map.set(o.driver_id, arr);
