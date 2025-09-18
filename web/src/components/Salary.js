@@ -56,44 +56,33 @@ const Salary = ({ userPermissions, user }) => {
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [uRes, oRes, aRes] = await Promise.all([
-        api.get('/api/users', { headers }),
-        api.get('/api/orders', { headers }),
-        api.get('/api/accounting', { headers }).catch(() => ({ data: { records: [] } }))
-      ]);
+      let ds = [];
       
-      // Если пользователь - водитель, показываем только его данные
-      let ds = (uRes.data?.users || []).filter(u => u.role === 'driver' && u.is_active !== false);
       if (user?.role === 'driver') {
-        ds = ds.filter(d => d.id === user.id);
-      }
-      
-      setDrivers(ds);
-      setOrders(oRes.data?.orders || []);
-      // Для водителя устанавливаем его ID как активного, для админа - первого водителя
-      if (user?.role === 'driver') {
+        // Для водителя используем только его данные
+        ds = [user];
+        const [oRes, aRes] = await Promise.all([
+          api.get('/api/orders', { headers }),
+          api.get('/api/accounting', { headers }).catch(() => ({ data: { records: [] } }))
+        ]);
+        
+        setDrivers(ds);
+        setOrders(oRes.data?.orders || []);
         setActiveDriverId(user.id);
-      } else if (!activeDriverId && ds.length) {
-        setActiveDriverId(ds[0].id);
-      }
-      
-      // Загружаем вычеты только с сервера (без локального хранения)
-      try {
-        const accountingData = aRes.data;
-        const salaryExpenses = (accountingData.records || []).filter(record => 
-          record.category === 'Зарплата' && 
-          record.description?.startsWith('Зарплатный вычет:') &&
-          Number(record.amount) < 0
-        );
         
-        // Создаем вычеты из записей accounting и фильтруем по водителям
-        const allDeductions = {};
-        
-        // Если пользователь - водитель, обрабатываем только его вычеты
-        if (user?.role === 'driver') {
+        // Загружаем вычеты только с сервера (без локального хранения)
+        try {
+          const accountingData = aRes.data;
+          const salaryExpenses = (accountingData.records || []).filter(record => 
+            record.category === 'Зарплата' && 
+            record.description?.startsWith('Зарплатный вычет:') &&
+            Number(record.amount) < 0
+          );
+          
+          // Создаем вычеты для водителя
+          const allDeductions = {};
           const driverDeductions = salaryExpenses
             .filter(expense => {
-              // Извлекаем ID водителя из описания (формат: "Зарплатный вычет: [комментарий] (водитель: ID)")
               const driverIdMatch = expense.description?.match(/водитель: (\d+)\)/);
               const driverId = driverIdMatch ? parseInt(driverIdMatch[1]) : null;
               return driverId === user.id;
@@ -106,8 +95,38 @@ const Salary = ({ userPermissions, user }) => {
             }));
           
           allDeductions[user.id] = driverDeductions;
-        } else {
-          // Для администратора обрабатываем всех водителей
+          setAdjustments(allDeductions);
+          
+        } catch (e) {
+          console.warn('Failed to load deductions from server:', e);
+          setAdjustments({});
+        }
+        
+      } else {
+        // Для администратора загружаем всех пользователей
+        const [uRes, oRes, aRes] = await Promise.all([
+          api.get('/api/users', { headers }),
+          api.get('/api/orders', { headers }),
+          api.get('/api/accounting', { headers }).catch(() => ({ data: { records: [] } }))
+        ]);
+        
+        ds = (uRes.data?.users || []).filter(u => u.role === 'driver' && u.is_active !== false);
+        
+        setDrivers(ds);
+        setOrders(oRes.data?.orders || []);
+        if (!activeDriverId && ds.length) setActiveDriverId(ds[0].id);
+        
+        // Загружаем вычеты только с сервера (без локального хранения)
+        try {
+          const accountingData = aRes.data;
+          const salaryExpenses = (accountingData.records || []).filter(record => 
+            record.category === 'Зарплата' && 
+            record.description?.startsWith('Зарплатный вычет:') &&
+            Number(record.amount) < 0
+          );
+          
+          // Создаем вычеты из записей accounting и фильтруем по водителям
+          const allDeductions = {};
           ds.forEach(driver => {
             const driverDeductions = salaryExpenses
               .filter(expense => {
@@ -124,14 +143,14 @@ const Salary = ({ userPermissions, user }) => {
             
             allDeductions[driver.id] = driverDeductions;
           });
+          
+          // Устанавливаем только серверные данные
+          setAdjustments(allDeductions);
+          
+        } catch (e) {
+          console.warn('Failed to load deductions from server:', e);
+          setAdjustments({});
         }
-        
-        // Устанавливаем только серверные данные
-        setAdjustments(allDeductions);
-        
-      } catch (e) {
-        console.warn('Failed to load deductions from server:', e);
-        setAdjustments({});
       }
       
     } catch (_) {}

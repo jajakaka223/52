@@ -41,7 +41,7 @@ function useAuthHeaders() {
   }, []);
 }
 
-const Orders = ({ theme, userPermissions }) => {
+const Orders = ({ theme, userPermissions, user }) => {
   const headers = useAuthHeaders();
   const [loading, setLoading] = useState(false);
   const [orders, setOrders] = useState([]);
@@ -63,6 +63,12 @@ const Orders = ({ theme, userPermissions }) => {
   }, [headers]);
 
   const fetchDrivers = useCallback(async () => {
+    // Для водителей не загружаем список водителей
+    if (user?.role === 'driver') {
+      setDrivers([]);
+      return;
+    }
+    
     try {
       const res = await api.get('/api/users', { headers });
       const list = (res.data?.users || []).filter(u => u.role === 'driver' && u.is_active !== false);
@@ -70,7 +76,7 @@ const Orders = ({ theme, userPermissions }) => {
     } catch (e) {
       // не критично для отображения списка заявок
     }
-  }, [headers]);
+  }, [headers, user?.role]);
 
   useEffect(() => { fetchOrders(); fetchDrivers(); }, [fetchOrders, fetchDrivers]);
 
