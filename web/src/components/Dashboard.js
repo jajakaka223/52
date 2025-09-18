@@ -45,17 +45,12 @@ const Dashboard = ({ user, theme, userPermissions }) => {
         const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
         if (user?.role === 'driver') {
-          // Для водителя загружаем только его заявки
-          const ordersRes = await api.get('/api/orders', { headers });
-          const orders = Array.isArray(ordersRes.data?.orders) ? ordersRes.data.orders : [];
-          const driverOrders = orders.filter(o => o.driver_id === user.id);
-          const completedOrders = driverOrders.filter(o => o.status === 'completed');
-
+          // Для водителя статистика будет обновлена в fetchRecent
           setStats({
             totalUsers: 0,
             totalVehicles: 0,
-            totalOrders: driverOrders.length,
-            completedOrders: completedOrders.length,
+            totalOrders: 0,
+            completedOrders: 0,
           });
         } else {
           // Для администратора загружаем общую статистику
@@ -104,6 +99,16 @@ const Dashboard = ({ user, theme, userPermissions }) => {
             status: o.status || 'new'
           }));
         setRecentOrders(short);
+
+        // Обновляем статистику для водителей
+        if (user?.role === 'driver') {
+          const completedOrders = orders.filter(o => o.status === 'completed');
+          setStats(prevStats => ({
+            ...prevStats,
+            totalOrders: orders.length,
+            completedOrders: completedOrders.length,
+          }));
+        }
 
         // Агрегаты за текущий месяц
         const start = dayjs().startOf('month');

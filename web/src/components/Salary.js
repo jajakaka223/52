@@ -385,13 +385,13 @@ const Salary = ({ userPermissions, user }) => {
             const total = Math.max(0, Math.round((totalRaw - sub) * 100) / 100);
             return {
               key: String(d.id),
-              label: d.full_name || d.username || `ID ${d.id}`,
+              label: d.fullName || d.full_name || d.username || `ID ${d.id}`,
               children: (
                 <div style={{ padding: 12 }}>
                   <Space direction="vertical" size={12} style={{ display: 'block' }}>
                     <Table
                       rowKey="id"
-                      dataSource={activeDriverId === d.id ? list : []}
+                      dataSource={Number(activeDriverId) === Number(d.id) ? list : []}
                       columns={columns}
                       pagination={{ pageSize: 10 }}
                       size="middle"
@@ -401,7 +401,7 @@ const Salary = ({ userPermissions, user }) => {
                       <Table
                         size="small"
                         rowKey="id"
-                        dataSource={activeDriverId === d.id ? adjFiltered : []}
+                        dataSource={Number(activeDriverId) === Number(d.id) ? adjFiltered : []}
                         pagination={{ pageSize: 5 }}
                         columns={[
                           { title: 'Дата', dataIndex: 'date', width: 140, render: v => v ? dayjs(v).format('DD.MM.YYYY') : '—' },
