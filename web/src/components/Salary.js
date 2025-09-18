@@ -230,8 +230,32 @@ const Salary = ({ userPermissions, user }) => {
 
   const deleteAdjustment = async (driverId, id) => {
     try {
+      // Сначала получаем информацию о записи для возврата суммы в бюджет
+      const recordResponse = await api.get(`/api/accounting/${id}`, { headers });
+      const record = recordResponse.data;
+      
       // Удаляем запись из расходов через API
       await api.delete(`/api/accounting/${id}`, { headers });
+      
+      // Возвращаем сумму обратно в бюджет категории "Зарплата"
+      try {
+        const balances = JSON.parse(localStorage.getItem('budget_balances_v1') || 'null') || { tax: 0, salary: 0, repair: 0, fuel: 0, safe: 0, profit: 0 };
+        const round2 = n => Math.round(Number(n||0)*100)/100;
+        balances.salary = round2(Number(balances.salary || 0) + Number(record.amount || 0));
+        localStorage.setItem('budget_balances_v1', JSON.stringify(balances));
+        
+        // Добавляем запись в историю
+        const hist = JSON.parse(localStorage.getItem('budget_history_v1') || '[]');
+        hist.unshift({ 
+          ts: Date.now(), 
+          category: 'Зарплата', 
+          delta: Number(record.amount || 0), 
+          comment: `Возврат: удалён вычет "${record.description?.replace(/Зарплатный вычет: (.+) \(водитель: \d+\)/, '$1') || ''}"` 
+        });
+        localStorage.setItem('budget_history_v1', JSON.stringify(hist.slice(0, 500)));
+      } catch (budgetError) {
+        console.warn('Не удалось обновить бюджет:', budgetError);
+      }
       
       // Перезагружаем данные с сервера
       await fetchAll();
