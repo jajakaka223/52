@@ -347,7 +347,7 @@ const createTables = async () => {
         can_view_menu_reports, can_delete_any, can_assign_drivers, can_create_orders, can_send_notifications, can_view_notifications
       ) VALUES (
         'driver', true, true, false, false, false, true, false, true, false, false, false, false,
-        true, false, false, false, false, false, false, false, false, false, false, true, false, true, false, false, false, false, false, true
+        true, false, false, false, false, false, false, true, false, false, false, true, false, true, false, false, false, false, false, true
       ) ON CONFLICT (role_key) DO NOTHING
     `);
     

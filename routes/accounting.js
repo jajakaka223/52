@@ -50,7 +50,7 @@ router.get('/', async (req, res) => {
     // Проверяем права доступа
     if (req.user.role !== 'admin') {
       paramCount++;
-      query += ` AND v.driver_id = $${paramCount}`;
+      query += ` AND (v.driver_id = $${paramCount} OR (a.vehicle_id IS NULL AND a.description LIKE 'Зарплатный вычет:%' AND a.description LIKE '%водитель: ' || $${paramCount} || ')%'))`;
       params.push(req.user.userId);
     }
 
@@ -88,13 +88,25 @@ router.get('/:id', async (req, res) => {
 
     // Проверяем права доступа
     if (req.user.role !== 'admin') {
-      const vehicleCheck = await pool.query(
-        'SELECT driver_id FROM vehicles WHERE id = $1',
-        [result.rows[0].vehicle_id]
-      );
+      const record = result.rows[0];
+      
+      // Если это зарплатный вычет, проверяем по описанию
+      if (record.vehicle_id === null && record.description && record.description.startsWith('Зарплатный вычет:')) {
+        const driverIdMatch = record.description.match(/водитель: (\d+)\)/);
+        const driverId = driverIdMatch ? parseInt(driverIdMatch[1]) : null;
+        if (driverId !== req.user.userId) {
+          return res.status(403).json({ error: 'Нет прав на просмотр этой записи' });
+        }
+      } else {
+        // Для обычных записей проверяем через vehicle
+        const vehicleCheck = await pool.query(
+          'SELECT driver_id FROM vehicles WHERE id = $1',
+          [record.vehicle_id]
+        );
 
-      if (vehicleCheck.rows.length === 0 || vehicleCheck.rows[0].driver_id !== req.user.userId) {
-        return res.status(403).json({ error: 'Нет прав на просмотр этой записи' });
+        if (vehicleCheck.rows.length === 0 || vehicleCheck.rows[0].driver_id !== req.user.userId) {
+          return res.status(403).json({ error: 'Нет прав на просмотр этой записи' });
+        }
       }
     }
 
@@ -183,13 +195,25 @@ router.put('/:id', async (req, res) => {
 
     // Проверяем права на редактирование
     if (req.user.role !== 'admin') {
-      const vehicleCheck = await pool.query(
-        'SELECT driver_id FROM vehicles WHERE id = $1',
-        [currentRecord.rows[0].vehicle_id]
-      );
+      const record = currentRecord.rows[0];
+      
+      // Если это зарплатный вычет, проверяем по описанию
+      if (record.vehicle_id === null && record.description && record.description.startsWith('Зарплатный вычет:')) {
+        const driverIdMatch = record.description.match(/водитель: (\d+)\)/);
+        const driverId = driverIdMatch ? parseInt(driverIdMatch[1]) : null;
+        if (driverId !== req.user.userId) {
+          return res.status(403).json({ error: 'Нет прав на редактирование этой записи' });
+        }
+      } else {
+        // Для обычных записей проверяем через vehicle
+        const vehicleCheck = await pool.query(
+          'SELECT driver_id FROM vehicles WHERE id = $1',
+          [record.vehicle_id]
+        );
 
-      if (vehicleCheck.rows.length === 0 || vehicleCheck.rows[0].driver_id !== req.user.userId) {
-        return res.status(403).json({ error: 'Нет прав на редактирование этой записи' });
+        if (vehicleCheck.rows.length === 0 || vehicleCheck.rows[0].driver_id !== req.user.userId) {
+          return res.status(403).json({ error: 'Нет прав на редактирование этой записи' });
+        }
       }
     }
 
@@ -259,13 +283,25 @@ router.delete('/:id', async (req, res) => {
 
     // Проверяем права на удаление
     if (req.user.role !== 'admin') {
-      const vehicleCheck = await pool.query(
-        'SELECT driver_id FROM vehicles WHERE id = $1',
-        [currentRecord.rows[0].vehicle_id]
-      );
+      const record = currentRecord.rows[0];
+      
+      // Если это зарплатный вычет, проверяем по описанию
+      if (record.vehicle_id === null && record.description && record.description.startsWith('Зарплатный вычет:')) {
+        const driverIdMatch = record.description.match(/водитель: (\d+)\)/);
+        const driverId = driverIdMatch ? parseInt(driverIdMatch[1]) : null;
+        if (driverId !== req.user.userId) {
+          return res.status(403).json({ error: 'Нет прав на удаление этой записи' });
+        }
+      } else {
+        // Для обычных записей проверяем через vehicle
+        const vehicleCheck = await pool.query(
+          'SELECT driver_id FROM vehicles WHERE id = $1',
+          [record.vehicle_id]
+        );
 
-      if (vehicleCheck.rows.length === 0 || vehicleCheck.rows[0].driver_id !== req.user.userId) {
-        return res.status(403).json({ error: 'Нет прав на удаление этой записи' });
+        if (vehicleCheck.rows.length === 0 || vehicleCheck.rows[0].driver_id !== req.user.userId) {
+          return res.status(403).json({ error: 'Нет прав на удаление этой записи' });
+        }
       }
     }
 
