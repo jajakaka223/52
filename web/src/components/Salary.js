@@ -397,12 +397,13 @@ const Salary = ({ userPermissions, user }) => {
                       size="middle"
                       scroll={{ x: 700 }}
                     />
-                    <Card size="small" title="Вычеты" bodyStyle={{ padding: 0 }}>
-                      <Table
-                        size="small"
-                        rowKey="id"
-                        dataSource={Number(activeDriverId) === Number(d.id) ? adjFiltered : []}
-                        pagination={{ pageSize: 5 }}
+                    {userPermissions?.can_view_salary_deductions && (
+                      <Card size="small" title="Вычеты" bodyStyle={{ padding: 0 }}>
+                        <Table
+                          size="small"
+                          rowKey="id"
+                          dataSource={Number(activeDriverId) === Number(d.id) ? adjFiltered : []}
+                          pagination={{ pageSize: 5 }}
                         columns={[
                           { title: 'Дата', dataIndex: 'date', width: 140, render: v => v ? dayjs(v).format('DD.MM.YYYY') : '—' },
                           { title: 'Сумма', dataIndex: 'amount', width: 140, render: v => `- ${Number(v || 0).toLocaleString('ru-RU')} руб.` },
@@ -428,8 +429,9 @@ const Salary = ({ userPermissions, user }) => {
                             ) : null
                           ) }
                         ]}
-                      />
-                    </Card>
+                        />
+                      </Card>
+                    )}
                     <div style={{ textAlign: 'right', fontWeight: 600, marginTop: 12, color: (typeof document !== 'undefined' && document.body?.getAttribute('data-theme') === 'dark') ? '#fff' : undefined }}>
                       Итого к выплате: {total.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} руб.
                     </div>
