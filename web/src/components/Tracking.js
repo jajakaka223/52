@@ -16,6 +16,7 @@ const Tracking = () => {
   const initializedRef = useRef(false);
   const mapInstanceRef = useRef(null);
   const markersRef = useRef([]);
+  const resizeObserverRef = useRef(null);
   
   const [drivers, setDrivers] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -174,6 +175,21 @@ const Tracking = () => {
         });
         initializedRef.current = true;
         
+        // Следим за изменением размеров контейнера (например, сворачивание левого сайдбара)
+        try {
+          if (window.ResizeObserver && mapRef.current) {
+            resizeObserverRef.current = new ResizeObserver(() => {
+              try { mapInstanceRef.current?.container.fitToViewport(); } catch (_) {}
+            });
+            resizeObserverRef.current.observe(mapRef.current);
+          } else {
+            // На всякий случай — слушатель окна
+            window.addEventListener('resize', () => {
+              try { mapInstanceRef.current?.container.fitToViewport(); } catch (_) {}
+            });
+          }
+        } catch (_) {}
+        
         // Загружаем данные водителей после инициализации карты
         loadDriversData();
       });
@@ -184,6 +200,13 @@ const Tracking = () => {
   };
 
   useEffect(() => { initMap(); }, []);
+
+  // Очистка наблюдателей при размонтировании
+  useEffect(() => {
+    return () => {
+      try { resizeObserverRef.current?.disconnect(); } catch (_) {}
+    };
+  }, []);
 
   // Автообновление каждые 30 секунд
   useEffect(() => {
