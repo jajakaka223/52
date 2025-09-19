@@ -111,6 +111,8 @@ app.use('/api/vehicles', require('./routes/vehicles'));
 app.use('/api/tracking', require('./routes/tracking'));
 app.use('/api/reports', require('./routes/reports'));
 app.use('/api/accounting', require('./routes/accounting'));
+app.use('/api/salary', require('./routes/salary'));
+app.use('/api/fcm', require('./routes/fcm'));
 app.use('/api/utils', require('./routes/utils'));
 app.use('/api/notifications', require('./routes/notifications'));
 

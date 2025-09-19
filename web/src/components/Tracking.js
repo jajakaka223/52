@@ -21,6 +21,26 @@ const Tracking = () => {
   const [drivers, setDrivers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [lastUpdate, setLastUpdate] = useState(null);
+  const [requestingCoords, setRequestingCoords] = useState(false);
+
+  // Запрос обновления координат у Android устройств
+  const requestCoordinatesUpdate = async () => {
+    try {
+      setRequestingCoords(true);
+      const { data } = await api.post('/api/tracking/request-coordinates');
+      message.success('Запрос на обновление координат отправлен');
+      
+      // Ждем немного и обновляем данные
+      setTimeout(() => {
+        loadDriversData();
+      }, 2000);
+    } catch (error) {
+      console.error('Ошибка запроса координат:', error);
+      message.error('Не удалось отправить запрос на обновление координат');
+    } finally {
+      setRequestingCoords(false);
+    }
+  };
 
   // Загрузка данных водителей
   const loadDriversData = async () => {
@@ -291,6 +311,14 @@ const Tracking = () => {
             loading={loading}
           >
             Обновить
+          </Button>
+          <Button 
+            type="default" 
+            icon={<EnvironmentOutlined />} 
+            onClick={requestCoordinatesUpdate}
+            loading={requestingCoords}
+          >
+            Обновить координаты
           </Button>
         </Space>
       </div>

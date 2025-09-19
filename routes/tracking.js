@@ -2,6 +2,7 @@ const express = require('express');
 const { pool } = require('../config/database');
 const { authenticateToken, requireDriver, logRequest, checkUserActive } = require('../middleware/auth');
 const { logUserAction, logGPSData, logError } = require('../utils/logger');
+const { io } = require('../socket/socketHandler');
 
 const router = express.Router();
 
@@ -255,6 +256,34 @@ router.delete('/cleanup', async (req, res) => {
   } catch (error) {
     logError(error, { route: '/tracking/cleanup', query: req.query, user: req.user });
     res.status(500).json({ error: 'Ошибка сервера при очистке GPS данных' });
+  }
+});
+
+// Запрос обновления координат у Android устройств (для web)
+router.post('/request-coordinates', async (req, res) => {
+  try {
+    // Отправляем WebSocket сообщение всем подключенным Android устройствам
+    if (io) {
+      io.emit('request_coordinates', {
+        timestamp: new Date().toISOString(),
+        requestedBy: req.user.id,
+        requestedByRole: req.user.role
+      });
+      
+      logUserAction(req.user.id, 'requested_coordinates_update', {
+        requestedBy: req.user.id,
+        requestedByRole: req.user.role
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Запрос на обновление координат отправлен всем устройствам'
+    });
+
+  } catch (error) {
+    logError(error, { route: '/tracking/request-coordinates', user: req.user });
+    res.status(500).json({ error: 'Ошибка сервера при отправке запроса координат' });
   }
 });
 
