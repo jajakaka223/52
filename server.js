@@ -3,11 +3,11 @@ require('dotenv').config();
 
 // Настройка переменных окружения для Railway
 const dbConfig = {
-  host: process.env.DB_HOST || process.env.DATABASE_URL ? new URL(process.env.DATABASE_URL).hostname : 'localhost',
-  port: process.env.DB_PORT || process.env.DATABASE_URL ? new URL(process.env.DATABASE_URL).port : 5432,
-  database: process.env.DB_NAME || process.env.DATABASE_URL ? new URL(process.env.DATABASE_URL).pathname.slice(1) : 'transport_company',
-  user: process.env.DB_USER || process.env.DATABASE_URL ? new URL(process.env.DATABASE_URL).username : 'postgres',
-  password: process.env.DB_PASSWORD || process.env.DATABASE_URL ? new URL(process.env.DATABASE_URL).password : 'your_password'
+  host: process.env.DB_HOST || (process.env.DATABASE_URL ? new URL(process.env.DATABASE_URL).hostname : 'localhost'),
+  port: process.env.DB_PORT || (process.env.DATABASE_URL ? new URL(process.env.DATABASE_URL).port : 5432),
+  database: process.env.DB_NAME || (process.env.DATABASE_URL ? new URL(process.env.DATABASE_URL).pathname.slice(1) : 'transport_company'),
+  user: process.env.DB_USER || (process.env.DATABASE_URL ? new URL(process.env.DATABASE_URL).username : 'postgres'),
+  password: process.env.DB_PASSWORD || (process.env.DATABASE_URL ? new URL(process.env.DATABASE_URL).password : 'your_password')
 };
 
 // Устанавливаем переменные для database.js

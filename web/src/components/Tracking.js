@@ -27,7 +27,11 @@ const Tracking = () => {
   const requestCoordinatesUpdate = async () => {
     try {
       setRequestingCoords(true);
+      console.log('Отправка запроса координат...');
+      console.log('Токен авторизации:', localStorage.getItem('auth_token') ? 'есть' : 'нет');
+      
       const { data } = await api.post('/api/tracking/request-coordinates');
+      console.log('Ответ сервера:', data);
       message.success('Запрос на обновление координат отправлен');
       
       // Ждем немного и обновляем данные
@@ -36,7 +40,9 @@ const Tracking = () => {
       }, 2000);
     } catch (error) {
       console.error('Ошибка запроса координат:', error);
-      message.error('Не удалось отправить запрос на обновление координат');
+      console.error('Статус ошибки:', error.response?.status);
+      console.error('Данные ошибки:', error.response?.data);
+      message.error(`Не удалось отправить запрос на обновление координат: ${error.response?.status || 'Неизвестная ошибка'}`);
     } finally {
       setRequestingCoords(false);
     }
