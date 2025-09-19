@@ -108,10 +108,20 @@ const Tracking = () => {
       const points = driversData
         .map(d => [toNumber(d.latitude, null), toNumber(d.longitude, null)])
         .filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng));
-      const bounds = window.ymaps.util.bounds.fromPoints(points);
-      mapInstanceRef.current.setBounds(bounds, { checkZoomRange: true, zoomMargin: 80 });
-      // Жёстко фиксируем целевой зум под шкалу ~100 м, чтобы карта не уходила на максимум
-      try { mapInstanceRef.current.setZoom(16); } catch (_) {}
+
+      const TARGET_ZOOM = 16; // ~100 м шкала в Яндекс.Картах
+
+      if (points.length === 1) {
+        // Для одной точки не используем setBounds (он уходит в максимальный зум)
+        try {
+          mapInstanceRef.current.setCenter(points[0], TARGET_ZOOM, { checkZoomRange: true });
+        } catch (_) {}
+      } else {
+        const bounds = window.ymaps.util.bounds.fromPoints(points);
+        mapInstanceRef.current.setBounds(bounds, { checkZoomRange: true, zoomMargin: 80 });
+        // После установки границ принудительно выставляем целевой зум
+        try { mapInstanceRef.current.setZoom(TARGET_ZOOM, { duration: 0 }); } catch (_) {}
+      }
     }
   };
 
