@@ -110,13 +110,8 @@ const Tracking = () => {
         .filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng));
       const bounds = window.ymaps.util.bounds.fromPoints(points);
       mapInstanceRef.current.setBounds(bounds, { checkZoomRange: true, zoomMargin: 80 });
-      const currentZoom = mapInstanceRef.current.getZoom();
-      // Целевой зум под шкалу ~100 м (примерно 16 для Яндекс карт)
-      const targetZoom = 16;
-      if (typeof currentZoom === 'number') {
-        const newZoom = Math.min(currentZoom, targetZoom);
-        mapInstanceRef.current.setZoom(newZoom);
-      }
+      // Жёстко фиксируем целевой зум под шкалу ~100 м, чтобы карта не уходила на максимум
+      try { mapInstanceRef.current.setZoom(16); } catch (_) {}
     }
   };
 
