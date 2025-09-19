@@ -6,6 +6,12 @@ import api from '../config/http';
 const { Title } = Typography;
 
 const Tracking = () => {
+  // Безопасное приведение к числу
+  const toNumber = (value, fallback = 0) => {
+    const n = typeof value === 'string' ? parseFloat(value) : value;
+    return Number.isFinite(n) ? n : fallback;
+  };
+
   const mapRef = useRef(null);
   const initializedRef = useRef(false);
   const mapInstanceRef = useRef(null);
@@ -20,12 +26,25 @@ const Tracking = () => {
     try {
       setLoading(true);
       const { data } = await api.get('/api/tracking/all-drivers');
-      setDrivers(data.drivers || []);
+      const raw = Array.isArray(data?.drivers) ? data.drivers : [];
+      // Нормализуем приходящие данные (Postgres numeric может быть строкой)
+      const normalized = raw
+        .map(d => ({
+          ...d,
+          latitude: toNumber(d.latitude, null),
+          longitude: toNumber(d.longitude, null),
+          speed: toNumber(d.speed, 0),
+          accuracy: toNumber(d.accuracy, 0),
+          timestamp: d.timestamp || Date.now(),
+        }))
+        .filter(d => Number.isFinite(d.latitude) && Number.isFinite(d.longitude));
+
+      setDrivers(normalized);
       setLastUpdate(new Date());
       
       // Обновляем карту
       if (mapInstanceRef.current) {
-        updateMapMarkers(data.drivers || []);
+        updateMapMarkers(normalized);
       }
     } catch (error) {
       console.error('Ошибка загрузки данных водителей:', error);
@@ -55,22 +74,27 @@ const Tracking = () => {
 
     // Добавляем новые метки
     driversData.forEach(driver => {
+      const lat = toNumber(driver.latitude, null);
+      const lng = toNumber(driver.longitude, null);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+      const spd = toNumber(driver.speed, 0);
+      const acc = toNumber(driver.accuracy, 0);
       const marker = new window.ymaps.Placemark(
-        [driver.latitude, driver.longitude],
+        [lat, lng],
         {
           balloonContent: `
             <div>
               <h3>${driver.full_name || driver.username}</h3>
-              <p><strong>Скорость:</strong> ${driver.speed?.toFixed(1) || 0} км/ч</p>
-              <p><strong>Точность:</strong> ${driver.accuracy?.toFixed(1) || 0} м</p>
-              <p><strong>Время:</strong> ${new Date(driver.timestamp).toLocaleString('ru-RU')}</p>
+              <p><strong>Скорость:</strong> ${spd.toFixed(1)} км/ч</p>
+              <p><strong>Точность:</strong> ${acc.toFixed(1)} м</p>
+              <p><strong>Время:</strong> ${new Date(driver.timestamp || Date.now()).toLocaleString('ru-RU')}</p>
             </div>
           `,
           iconCaption: driver.full_name || driver.username
         },
         {
           preset: 'islands#redCarIcon',
-          iconColor: driver.speed > 0 ? '#ff6b6b' : '#52d66b'
+          iconColor: spd > 0 ? '#ff6b6b' : '#52d66b'
         }
       );
       
@@ -81,7 +105,9 @@ const Tracking = () => {
     // Центрируем карту на водителях
     if (driversData.length > 0) {
       const bounds = window.ymaps.util.bounds.fromPoints(
-        driversData.map(driver => [driver.latitude, driver.longitude])
+        driversData
+          .map(d => [toNumber(d.latitude, null), toNumber(d.longitude, null)])
+          .filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng))
       );
       mapInstanceRef.current.setBounds(bounds, { checkZoomRange: true });
     }
@@ -176,7 +202,7 @@ const Tracking = () => {
       render: (_, record) => (
         <Space>
           <EnvironmentOutlined />
-          {record.latitude.toFixed(6)}, {record.longitude.toFixed(6)}
+          {toNumber(record.latitude, 0).toFixed(6)}, {toNumber(record.longitude, 0).toFixed(6)}
         </Space>
       ),
     },
@@ -184,17 +210,20 @@ const Tracking = () => {
       title: 'Скорость',
       dataIndex: 'speed',
       key: 'speed',
-      render: (speed) => (
+      render: (speed) => {
+        const spd = toNumber(speed, 0);
+        return (
         <Tag color={speed > 0 ? 'red' : 'green'}>
-          {speed?.toFixed(1) || 0} км/ч
+          {spd.toFixed(1)} км/ч
         </Tag>
-      ),
+        );
+      },
     },
     {
       title: 'Точность',
       dataIndex: 'accuracy',
       key: 'accuracy',
-      render: (accuracy) => `${accuracy?.toFixed(1) || 0} м`,
+      render: (accuracy) => `${toNumber(accuracy, 0).toFixed(1)} м`,
     },
     {
       title: 'Последнее обновление',
@@ -203,7 +232,7 @@ const Tracking = () => {
       render: (timestamp) => (
         <Space>
           <ClockCircleOutlined />
-          {new Date(timestamp).toLocaleString('ru-RU')}
+          {new Date(timestamp || Date.now()).toLocaleString('ru-RU')}
         </Space>
       ),
     },
