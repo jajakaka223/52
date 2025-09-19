@@ -123,7 +123,7 @@ const Tracking = () => {
         if (mapRef.current) {
           mapRef.current.innerHTML = `
             <div style="
-              height: 400px; 
+              height: 320px; 
               width: 100%; 
               background: #f5f5f5; 
               display: flex; 
@@ -133,6 +133,7 @@ const Tracking = () => {
               color: #666;
               font-size: 16px;
               text-align: center;
+              overflow: hidden;
             ">
               <div>
                 <div style="font-size: 24px; margin-bottom: 10px;">🗺️</div>
@@ -194,15 +195,19 @@ const Tracking = () => {
       title: 'Водитель',
       dataIndex: 'full_name',
       key: 'name',
-      render: (text, record) => text || record.username,
+      render: (text, record) => (
+        <span style={{ whiteSpace: 'nowrap' }}>{text || record.username}</span>
+      ),
     },
     {
       title: 'Координаты',
       key: 'coordinates',
       render: (_, record) => (
-        <Space>
+        <Space wrap={false}>
           <EnvironmentOutlined />
-          {toNumber(record.latitude, 0).toFixed(6)}, {toNumber(record.longitude, 0).toFixed(6)}
+          <span style={{ whiteSpace: 'nowrap' }}>
+            {toNumber(record.latitude, 0).toFixed(6)}, {toNumber(record.longitude, 0).toFixed(6)}
+          </span>
         </Space>
       ),
     },
@@ -213,7 +218,7 @@ const Tracking = () => {
       render: (speed) => {
         const spd = toNumber(speed, 0);
         return (
-        <Tag color={speed > 0 ? 'red' : 'green'}>
+        <Tag color={speed > 0 ? 'red' : 'green'} style={{ whiteSpace: 'nowrap' }}>
           {spd.toFixed(1)} км/ч
         </Tag>
         );
@@ -223,16 +228,18 @@ const Tracking = () => {
       title: 'Точность',
       dataIndex: 'accuracy',
       key: 'accuracy',
-      render: (accuracy) => `${toNumber(accuracy, 0).toFixed(1)} м`,
+      render: (accuracy) => (
+        <span style={{ whiteSpace: 'nowrap' }}>{toNumber(accuracy, 0).toFixed(1)} м</span>
+      ),
     },
     {
       title: 'Последнее обновление',
       dataIndex: 'timestamp',
       key: 'timestamp',
       render: (timestamp) => (
-        <Space>
+        <Space wrap={false}>
           <ClockCircleOutlined />
-          {new Date(timestamp || Date.now()).toLocaleString('ru-RU')}
+          <span style={{ whiteSpace: 'nowrap' }}>{new Date(timestamp || Date.now()).toLocaleString('ru-RU')}</span>
         </Space>
       ),
     },
@@ -297,18 +304,18 @@ const Tracking = () => {
 
       <Row gutter={16}>
         <Col span={16}>
-          <Card title="Карта местоположений" style={{ height: 500 }}>
-            <div ref={mapRef} style={{ height: 400, width: '100%' }} />
+          <Card title="Карта местоположений" style={{ height: 380, overflow: 'hidden' }}>
+            <div ref={mapRef} style={{ height: 320, width: '100%', overflow: 'hidden' }} />
           </Card>
         </Col>
         <Col span={8}>
-          <Card title="Список водителей" style={{ height: 500 }}>
+          <Card title="Список водителей" style={{ height: 380, overflow: 'hidden' }}>
             <Table
               dataSource={drivers}
               columns={columns}
               pagination={false}
               size="small"
-              scroll={{ y: 400 }}
+              scroll={{ y: 300, x: true }}
               loading={loading}
               rowKey="id"
             />
