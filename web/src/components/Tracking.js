@@ -104,12 +104,15 @@ const Tracking = () => {
 
     // Центрируем карту на водителях
     if (driversData.length > 0) {
-      const bounds = window.ymaps.util.bounds.fromPoints(
-        driversData
-          .map(d => [toNumber(d.latitude, null), toNumber(d.longitude, null)])
-          .filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng))
-      );
-      mapInstanceRef.current.setBounds(bounds, { checkZoomRange: true });
+      const points = driversData
+        .map(d => [toNumber(d.latitude, null), toNumber(d.longitude, null)])
+        .filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng));
+      const bounds = window.ymaps.util.bounds.fromPoints(points);
+      mapInstanceRef.current.setBounds(bounds, { checkZoomRange: true, zoomMargin: 60 });
+      const currentZoom = mapInstanceRef.current.getZoom();
+      if (typeof currentZoom === 'number') {
+        mapInstanceRef.current.setZoom(Math.max(currentZoom - 1, 4));
+      }
     }
   };
 
@@ -164,7 +167,7 @@ const Tracking = () => {
         }
         mapInstanceRef.current = new window.ymaps.Map(mapRef.current, {
           center: [55.751244, 37.618423],
-          zoom: 9
+          zoom: 8
         });
         initializedRef.current = true;
         
@@ -261,7 +264,7 @@ const Tracking = () => {
         </Space>
       </div>
 
-      <Row gutter={16} style={{ marginBottom: 16 }}>
+      <Row gutter={16} style={{ marginBottom: 12 }}>
         <Col span={6}>
           <Card>
             <Statistic
@@ -301,24 +304,28 @@ const Tracking = () => {
           </Card>
         </Col>
       </Row>
-
-      <Row gutter={16}>
-        <Col span={16}>
-          <Card title="Карта местоположений" style={{ height: 380, overflow: 'hidden' }}>
-            <div ref={mapRef} style={{ height: 320, width: '100%', overflow: 'hidden' }} />
-          </Card>
-        </Col>
-        <Col span={8}>
-          <Card title="Список водителей" style={{ height: 380, overflow: 'hidden' }}>
+      {/* Список водителей сверху, на всю ширину */}
+      <Row gutter={16} style={{ marginBottom: 12 }}>
+        <Col span={24}>
+          <Card title="Список водителей" style={{ overflow: 'hidden' }}>
             <Table
               dataSource={drivers}
               columns={columns}
               pagination={false}
               size="small"
-              scroll={{ y: 300, x: true }}
+              scroll={{ x: true }}
               loading={loading}
               rowKey="id"
             />
+          </Card>
+        </Col>
+      </Row>
+
+      {/* Карта на всю ширину и выше */}
+      <Row gutter={16}>
+        <Col span={24}>
+          <Card title="Карта местоположений" style={{ height: 560, overflow: 'hidden' }}>
+            <div ref={mapRef} style={{ height: 500, width: '100%', overflow: 'hidden' }} />
           </Card>
         </Col>
       </Row>
