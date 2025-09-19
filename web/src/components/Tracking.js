@@ -108,10 +108,13 @@ const Tracking = () => {
         .map(d => [toNumber(d.latitude, null), toNumber(d.longitude, null)])
         .filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng));
       const bounds = window.ymaps.util.bounds.fromPoints(points);
-      mapInstanceRef.current.setBounds(bounds, { checkZoomRange: true, zoomMargin: 60 });
+      mapInstanceRef.current.setBounds(bounds, { checkZoomRange: true, zoomMargin: 80 });
       const currentZoom = mapInstanceRef.current.getZoom();
+      // Целевой зум под шкалу ~100 м (примерно 16 для Яндекс карт)
+      const targetZoom = 16;
       if (typeof currentZoom === 'number') {
-        mapInstanceRef.current.setZoom(Math.max(currentZoom - 1, 4));
+        const newZoom = Math.min(currentZoom, targetZoom);
+        mapInstanceRef.current.setZoom(newZoom);
       }
     }
   };
@@ -167,7 +170,7 @@ const Tracking = () => {
         }
         mapInstanceRef.current = new window.ymaps.Map(mapRef.current, {
           center: [55.751244, 37.618423],
-          zoom: 8
+          zoom: 16
         });
         initializedRef.current = true;
         
@@ -321,11 +324,11 @@ const Tracking = () => {
         </Col>
       </Row>
 
-      {/* Карта на всю ширину и выше */}
+      {/* Карта на всю ширину и выравнивание контейнера по карте */}
       <Row gutter={16}>
         <Col span={24}>
-          <Card title="Карта местоположений" style={{ height: 560, overflow: 'hidden' }}>
-            <div ref={mapRef} style={{ height: 500, width: '100%', overflow: 'hidden' }} />
+          <Card title="Карта местоположений" bodyStyle={{ padding: 0 }} style={{ overflow: 'hidden' }}>
+            <div ref={mapRef} style={{ height: 520, width: '100%', overflow: 'hidden' }} />
           </Card>
         </Col>
       </Row>
