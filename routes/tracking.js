@@ -24,16 +24,24 @@ router.post('/location', requireDriver, async (req, res) => {
       return res.status(400).json({ error: 'Некорректные координаты' });
     }
 
+    // Нормализуем скорость: если пришла в м/с (редко), конвертируем; если уже км/ч, оставляем
+    let normalizedSpeed = null;
+    if (typeof speed === 'number' && !isNaN(speed)) {
+      // Если скорость выглядит как м/с (обычно < 60), умножаем на 3.6
+      normalizedSpeed = speed < 60 ? speed * 3.6 : speed;
+      if (normalizedSpeed < 0) normalizedSpeed = 0;
+    }
+
     // Сохраняем GPS данные
     const result = await pool.query(
       `INSERT INTO gps_tracking (user_id, latitude, longitude, speed, heading, accuracy)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING *`,
-      [req.user.userId, latitude, longitude, speed, heading, accuracy]
+      [req.user.userId, latitude, longitude, normalizedSpeed, heading, accuracy]
     );
 
     // Логируем GPS данные
-    logGPSData(req.user.userId, latitude, longitude, speed, heading);
+    logGPSData(req.user.userId, latitude, longitude, normalizedSpeed, heading);
 
     res.json({
       success: true,

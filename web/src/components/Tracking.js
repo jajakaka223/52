@@ -29,7 +29,15 @@ const Tracking = () => {
       }
     } catch (error) {
       console.error('Ошибка загрузки данных водителей:', error);
-      message.error('Не удалось загрузить данные водителей');
+      const detail = error?.response?.data?.error || error?.message || '';
+      // Частая причина: нет прав администратора или отсутствует токен
+      if (error?.response?.status === 403) {
+        message.error('Доступ запрещен. Войдите как администратор');
+      } else if (error?.response?.status === 401) {
+        message.error('Требуется авторизация. Выполните вход.');
+      } else {
+        message.error('Не удалось загрузить данные водителей' + (detail ? `: ${detail}` : ''));
+      }
     } finally {
       setLoading(false);
     }
