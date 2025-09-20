@@ -10,7 +10,7 @@ import Dashboard from './components/Dashboard';
 import Orders from './components/Orders';
 import Vehicles from './components/Vehicles';
 import Reports from './components/Reports';
-import Tracking from './components/Tracking';
+import EnhancedTracking from './components/EnhancedTracking';
 import Settings from './components/Settings';
 import Expenses from './components/Expenses';
 import Maintenance from './components/Maintenance';
@@ -232,7 +232,7 @@ function App() {
       case 'maintenance':
         return <Maintenance userPermissions={userPermissions} />;
       case 'tracking':
-        return <Tracking user={user} userPermissions={userPermissions} />;
+        return <EnhancedTracking user={user} userPermissions={userPermissions} />;
       case 'reports':
         return <Reports user={user} theme={theme} userPermissions={userPermissions} />;
       case 'settings':

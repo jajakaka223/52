@@ -30,7 +30,7 @@ const { Title } = Typography;
 const { TabPane } = Tabs;
 const { Option } = Select;
 
-const EnhancedTracking = () => {
+const EnhancedTracking = ({ user, userPermissions }) => {
   // Безопасное приведение к числу
   const toNumber = (value, fallback = 0) => {
     const n = typeof value === 'string' ? parseFloat(value) : value;
@@ -47,12 +47,9 @@ const EnhancedTracking = () => {
   const [loading, setLoading] = useState(false);
   const [lastUpdate, setLastUpdate] = useState(null);
   const [requestingCoords, setRequestingCoords] = useState(false);
-  const [selectedDriver, setSelectedDriver] = useState('all');
+  const [activeDriverId, setActiveDriverId] = useState('all');
   const [pointsLimit, setPointsLimit] = useState(10);
-  const [activeTab, setActiveTab] = useState('all');
 
-  // Получение уникальных водителей
-  const uniqueDrivers = [...new Set(drivers.map(driver => driver.user_id))];
 
   // Запрос обновления координат у Android устройств
   const requestCoordinatesUpdate = async () => {
@@ -86,7 +83,26 @@ const EnhancedTracking = () => {
       console.log('Данные водителей получены:', data);
       
       if (data && Array.isArray(data)) {
-        setDrivers(data);
+        // Загружаем историю для каждого водителя
+        const driversWithHistory = await Promise.all(
+          data.map(async (driver) => {
+            try {
+              const historyResponse = await api.get(`/api/tracking/driver-history/${driver.id}?limit=100`);
+              return {
+                ...driver,
+                location_history: historyResponse.data
+              };
+            } catch (error) {
+              console.warn(`Не удалось загрузить историю для водителя ${driver.id}:`, error);
+              return {
+                ...driver,
+                location_history: []
+              };
+            }
+          })
+        );
+        
+        setDrivers(driversWithHistory);
         setLastUpdate(new Date());
       } else {
         console.warn('Неожиданный формат данных:', data);
@@ -101,34 +117,32 @@ const EnhancedTracking = () => {
     }
   };
 
-  // Фильтрация данных по выбранному водителю и лимиту точек
-  const getFilteredData = () => {
-    let filtered = drivers;
-    
-    // Фильтр по водителю
-    if (selectedDriver !== 'all') {
-      filtered = filtered.filter(driver => driver.user_id === parseInt(selectedDriver));
-    }
-    
-    // Сортировка по времени (новые сначала)
-    filtered = filtered.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-    
-    // Лимит точек (только для конкретного водителя)
-    if (selectedDriver !== 'all') {
-      filtered = filtered.slice(0, pointsLimit);
+  // Получение данных для отображения
+  const getDisplayData = () => {
+    if (activeDriverId === 'all') {
+      // Для вкладки "Все" показываем только последние точки всех водителей
+      return drivers.map(driver => ({
+        ...driver.last_location,
+        key: driver.id,
+        driver_name: driver.name,
+        driver_id: driver.id,
+      })).filter(loc => loc.latitude && loc.longitude);
     } else {
-      // Для "Все" показываем только последние точки каждого водителя
-      const latestByDriver = {};
-      filtered.forEach(driver => {
-        if (!latestByDriver[driver.user_id] || 
-            new Date(driver.timestamp) > new Date(latestByDriver[driver.user_id].timestamp)) {
-          latestByDriver[driver.user_id] = driver;
-        }
-      });
-      filtered = Object.values(latestByDriver);
+      // Для конкретного водителя показываем историю с лимитом
+      const selectedDriver = drivers.find(d => d.id === activeDriverId);
+      if (selectedDriver && selectedDriver.location_history) {
+        return selectedDriver.location_history
+          .sort((a, b) => b.timestamp - a.timestamp)
+          .slice(0, pointsLimit)
+          .map(loc => ({ 
+            ...loc, 
+            key: loc.timestamp, 
+            driver_name: selectedDriver.name, 
+            driver_id: activeDriverId 
+          }));
+      }
+      return [];
     }
-    
-    return filtered;
   };
 
   // Форматирование скорости
@@ -225,13 +239,10 @@ const EnhancedTracking = () => {
 
   // Статистика
   const getStats = () => {
-    const filtered = getFilteredData();
-    const totalDrivers = uniqueDrivers.length;
-    const activeDrivers = filtered.length;
-    const avgAccuracy = filtered.length > 0 
-      ? filtered.reduce((sum, d) => sum + (d.accuracy || 0), 0) / filtered.length 
-      : 0;
-    const movingDrivers = filtered.filter(d => d.speed > 0).length;
+    const totalDrivers = drivers.length;
+    const activeDrivers = drivers.filter(d => d.last_location && (Date.now() - d.last_location.timestamp < 300000)).length; // Last 5 minutes
+    const movingDrivers = drivers.filter(d => d.last_location && toNumber(d.last_location.speed) > 0.5).length; // Speed > 0.5 m/s
+    const avgAccuracy = drivers.reduce((sum, d) => sum + (d.last_location ? toNumber(d.last_location.accuracy) : 0), 0) / totalDrivers || 0;
 
     return {
       totalDrivers,
@@ -252,13 +263,103 @@ const EnhancedTracking = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Обработка смены вкладки
-  const handleTabChange = (key) => {
-    setActiveTab(key);
-    if (key === 'all') {
-      setSelectedDriver('all');
-    } else {
-      setSelectedDriver(key);
+  // Инициализация карты
+  useEffect(() => {
+    if (mapRef.current && !initializedRef.current) {
+      // Инициализация Yandex Maps
+      if (window.ymaps) {
+        window.ymaps.ready(() => {
+          if (!mapInstanceRef.current) {
+            mapInstanceRef.current = new window.ymaps.Map(mapRef.current, {
+              center: [55.75, 37.57], // Москва
+              zoom: 10,
+              controls: ['zoomControl', 'fullscreenControl']
+            });
+            initializedRef.current = true;
+            console.log('Yandex Map initialized');
+          }
+          updateMapMarkers();
+        });
+      }
+    } else if (initializedRef.current) {
+      updateMapMarkers();
+    }
+  }, [drivers, activeDriverId, pointsLimit]);
+
+  // Обновление меток на карте
+  const updateMapMarkers = () => {
+    if (!mapInstanceRef.current) return;
+
+    // Удаляем старые метки
+    markersRef.current.forEach(marker => mapInstanceRef.current.geoObjects.remove(marker));
+    markersRef.current = [];
+
+    const displayData = getDisplayData();
+    if (displayData.length === 0) {
+      console.log('Нет данных для отображения на карте');
+      return;
+    }
+
+    const bounds = new window.ymaps.GeoObjectCollection();
+
+    displayData.forEach(loc => {
+      const latitude = toNumber(loc.latitude);
+      const longitude = toNumber(loc.longitude);
+      const accuracy = toNumber(loc.accuracy);
+      const speed = toNumber(loc.speed);
+      const timestamp = new Date(loc.timestamp).toLocaleString();
+
+      let preset = 'islands#blueDotIcon';
+      let iconColor = '#0000FF'; // Default blue
+      if (accuracy <= 10) {
+        preset = 'islands#greenDotIcon';
+        iconColor = '#008000'; // Green for high accuracy
+      } else if (accuracy <= 50) {
+        preset = 'islands#orangeDotIcon';
+        iconColor = '#FFA500'; // Orange for medium accuracy
+      } else {
+        preset = 'islands#redDotIcon';
+        iconColor = '#FF0000'; // Red for low accuracy
+      }
+
+      const placemark = new window.ymaps.Placemark([latitude, longitude], {
+        hintContent: `Водитель: ${loc.driver_name}<br>Время: ${timestamp}<br>Точность: ${accuracy}м<br>Скорость: ${speed ? (speed * 3.6).toFixed(1) + ' км/ч' : 'N/A'}`,
+        balloonContent: `
+          <b>Водитель:</b> ${loc.driver_name}<br>
+          <b>Время:</b> ${timestamp}<br>
+          <b>Координаты:</b> ${latitude.toFixed(6)}, ${longitude.toFixed(6)}<br>
+          <b>Точность:</b> ${accuracy}м<br>
+          <b>Скорость:</b> ${speed ? (speed * 3.6).toFixed(1) + ' км/ч' : 'N/A'}<br>
+          <b>Направление:</b> ${loc.heading ? loc.heading.toFixed(1) + '°' : 'N/A'}
+        `
+      }, {
+        preset: preset,
+        iconColor: iconColor
+      });
+
+      mapInstanceRef.current.geoObjects.add(placemark);
+      markersRef.current.push(placemark);
+      bounds.add(placemark);
+    });
+
+    // Добавляем линию маршрута для конкретного водителя
+    if (activeDriverId !== 'all' && displayData.length > 1) {
+      const polyline = new window.ymaps.Polyline(
+        displayData.map(loc => [toNumber(loc.latitude), toNumber(loc.longitude)]),
+        {},
+        {
+          strokeColor: '#0000FF',
+          strokeWidth: 4,
+          strokeOpacity: 0.7
+        }
+      );
+      mapInstanceRef.current.geoObjects.add(polyline);
+      markersRef.current.push(polyline);
+    }
+
+    // Центрируем карту на метках
+    if (bounds.getLength() > 0) {
+      mapInstanceRef.current.setBounds(bounds.getBounds(), { checkZoomRange: true, zoomMargin: 30 });
     }
   };
 
@@ -326,25 +427,21 @@ const EnhancedTracking = () => {
         </Row>
 
         {/* Вкладки и фильтры */}
-        <Tabs activeKey={activeTab} onChange={handleTabChange}>
+        <Tabs activeKey={activeDriverId} onChange={setActiveDriverId}>
           <TabPane tab="Все водители" key="all">
-            <div style={{ marginBottom: 16 }}>
-              <Space>
-                <span>Показать последние точки всех водителей</span>
-              </Space>
-            </div>
+            <div ref={mapRef} style={{ width: '100%', height: '500px', marginBottom: 20 }} />
             <Table
               columns={columns}
-              dataSource={getFilteredData()}
-              rowKey="id"
+              dataSource={getDisplayData()}
+              rowKey="driver_id"
               loading={loading}
               pagination={{ pageSize: 20 }}
               size="small"
             />
           </TabPane>
           
-          {uniqueDrivers.map(driverId => (
-            <TabPane tab={`Водитель ${driverId}`} key={driverId.toString()}>
+          {drivers.map(driver => (
+            <TabPane tab={driver.name} key={driver.id.toString()}>
               <div style={{ marginBottom: 16 }}>
                 <Space>
                   <span>Количество последних точек:</span>
@@ -362,10 +459,11 @@ const EnhancedTracking = () => {
                   </Select>
                 </Space>
               </div>
+              <div ref={mapRef} style={{ width: '100%', height: '500px', marginBottom: 20 }} />
               <Table
                 columns={columns}
-                dataSource={getFilteredData()}
-                rowKey="id"
+                dataSource={getDisplayData()}
+                rowKey="timestamp"
                 loading={loading}
                 pagination={{ pageSize: 20 }}
                 size="small"

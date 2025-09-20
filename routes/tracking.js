@@ -159,14 +159,63 @@ router.get('/all-drivers', async (req, res) => {
        ORDER BY gt.user_id, gt.timestamp DESC`
     );
 
-    res.json({
-      success: true,
-      drivers: result.rows
-    });
+    // Форматируем данные для нового интерфейса
+    const drivers = result.rows.map(driver => ({
+      id: driver.user_id,
+      name: driver.full_name || driver.username,
+      last_location: {
+        latitude: driver.latitude,
+        longitude: driver.longitude,
+        speed: driver.speed,
+        heading: driver.heading,
+        accuracy: driver.accuracy,
+        timestamp: driver.timestamp
+      }
+    }));
+
+    res.json(drivers);
 
   } catch (error) {
     logError(error, { route: '/tracking/all-drivers', user: req.user });
     res.status(500).json({ error: 'Ошибка сервера при получении местоположений водителей' });
+  }
+});
+
+// Получить историю GPS данных водителя с лимитом (для нового интерфейса)
+router.get('/driver-history/:driverId', async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Доступ запрещен. Требуются права администратора' });
+    }
+
+    const { driverId } = req.params;
+    const { limit = 10 } = req.query;
+
+    // Получаем историю GPS данных водителя
+    const result = await pool.query(
+      `SELECT gt.*, u.full_name, u.username
+       FROM gps_tracking gt
+       JOIN users u ON gt.user_id = u.id
+       WHERE gt.user_id = $1
+       ORDER BY gt.timestamp DESC
+       LIMIT $2`,
+      [driverId, parseInt(limit)]
+    );
+
+    const locationHistory = result.rows.map(row => ({
+      latitude: row.latitude,
+      longitude: row.longitude,
+      speed: row.speed,
+      heading: row.heading,
+      accuracy: row.accuracy,
+      timestamp: row.timestamp
+    }));
+
+    res.json(locationHistory);
+
+  } catch (error) {
+    logError(error, { route: `/tracking/driver-history/${req.params.driverId}`, user: req.user });
+    res.status(500).json({ error: 'Ошибка сервера при получении истории водителя' });
   }
 });
 
