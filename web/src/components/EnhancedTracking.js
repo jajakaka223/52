@@ -38,8 +38,8 @@ const EnhancedTracking = ({ user, userPermissions }) => {
   };
 
   const mapRef = useRef(null);
-  const initializedRef = useRef(false);
-  const mapInstanceRef = useRef(null);
+  const driverMapRefs = useRef({});
+  const mapInstances = useRef({});
   const markersRef = useRef([]);
   const resizeObserverRef = useRef(null);
   
@@ -49,6 +49,17 @@ const EnhancedTracking = ({ user, userPermissions }) => {
   const [requestingCoords, setRequestingCoords] = useState(false);
   const [activeDriverId, setActiveDriverId] = useState('all');
   const [pointsLimit, setPointsLimit] = useState(10);
+
+  // Получение ref для карты в зависимости от активной вкладки
+  const getMapRef = (driverId) => {
+    if (driverId === 'all') {
+      return mapRef;
+    }
+    if (!driverMapRefs.current[driverId]) {
+      driverMapRefs.current[driverId] = { current: null };
+    }
+    return driverMapRefs.current[driverId];
+  };
 
 
   // Запрос обновления координат у Android устройств
@@ -282,7 +293,10 @@ const EnhancedTracking = ({ user, userPermissions }) => {
   // Инициализация карты
   useEffect(() => {
     const initMap = async () => {
-      if (mapRef.current && !initializedRef.current) {
+      const currentMapRef = getMapRef(activeDriverId);
+      const mapKey = activeDriverId;
+      
+      if (currentMapRef.current && !mapInstances.current[mapKey]) {
         try {
           // Загружаем Yandex Maps API
           if (!window.ymaps) {
@@ -296,22 +310,21 @@ const EnhancedTracking = ({ user, userPermissions }) => {
           }
 
           window.ymaps.ready(() => {
-            if (!mapInstanceRef.current) {
-              mapInstanceRef.current = new window.ymaps.Map(mapRef.current, {
+            if (!mapInstances.current[mapKey]) {
+              mapInstances.current[mapKey] = new window.ymaps.Map(currentMapRef.current, {
                 center: [55.75, 37.57], // Москва
                 zoom: 10,
                 controls: ['zoomControl', 'fullscreenControl']
               });
-              initializedRef.current = true;
-              console.log('Yandex Map initialized');
+              console.log(`Yandex Map initialized for ${mapKey}`);
               updateMapMarkers();
             }
           });
         } catch (error) {
           console.error('Ошибка загрузки Yandex Maps:', error);
           // Показываем заглушку
-          if (mapRef.current) {
-            mapRef.current.innerHTML = `
+          if (currentMapRef.current) {
+            currentMapRef.current.innerHTML = `
               <div style="
                 height: 500px; 
                 width: 100%; 
@@ -333,7 +346,7 @@ const EnhancedTracking = ({ user, userPermissions }) => {
             `;
           }
         }
-      } else if (initializedRef.current) {
+      } else if (mapInstances.current[mapKey]) {
         updateMapMarkers();
       }
     };
@@ -343,10 +356,12 @@ const EnhancedTracking = ({ user, userPermissions }) => {
 
   // Обновление меток на карте
   const updateMapMarkers = () => {
-    if (!mapInstanceRef.current) return;
+    const mapKey = activeDriverId;
+    const mapInstance = mapInstances.current[mapKey];
+    if (!mapInstance) return;
 
     // Удаляем старые метки
-    markersRef.current.forEach(marker => mapInstanceRef.current.geoObjects.remove(marker));
+    markersRef.current.forEach(marker => mapInstance.geoObjects.remove(marker));
     markersRef.current = [];
 
     const displayData = getDisplayData();
@@ -394,7 +409,7 @@ const EnhancedTracking = ({ user, userPermissions }) => {
         iconColor: iconColor
       });
 
-      mapInstanceRef.current.geoObjects.add(placemark);
+      mapInstance.geoObjects.add(placemark);
       markersRef.current.push(placemark);
       points.push([latitude, longitude]);
     });
@@ -406,16 +421,16 @@ const EnhancedTracking = ({ user, userPermissions }) => {
         strokeWidth: 4,
         strokeOpacity: 0.7
       });
-      mapInstanceRef.current.geoObjects.add(polyline);
+      mapInstance.geoObjects.add(polyline);
       markersRef.current.push(polyline);
     }
 
     // Центрируем карту на метках
     if (points.length > 0) {
       if (points.length === 1) {
-        mapInstanceRef.current.setCenter(points[0], 16);
+        mapInstance.setCenter(points[0], 16);
       } else {
-        mapInstanceRef.current.setBounds(window.ymaps.util.bounds.fromPoints(points), {
+        mapInstance.setBounds(window.ymaps.util.bounds.fromPoints(points), {
           checkZoomRange: true,
           zoomMargin: 30
         });
@@ -512,22 +527,23 @@ const EnhancedTracking = ({ user, userPermissions }) => {
             <TabPane tab={driver.name} key={driver.id.toString()}>
               <div style={{ marginBottom: 16 }}>
                 <Space>
-                  <span>Количество последних точек:</span>
+                  <span style={{ color: '#fff' }}>Количество последних точек:</span>
                   <Select
                     value={pointsLimit}
                     onChange={setPointsLimit}
                     style={{ width: 100 }}
+                    dropdownStyle={{ backgroundColor: '#1f1f1f' }}
                   >
-                    <Option value={5}>5</Option>
-                    <Option value={10}>10</Option>
-                    <Option value={15}>15</Option>
-                    <Option value={20}>20</Option>
-                    <Option value={50}>50</Option>
-                    <Option value={100}>100</Option>
+                    <Option value={5} style={{ color: '#fff' }}>5</Option>
+                    <Option value={10} style={{ color: '#fff' }}>10</Option>
+                    <Option value={15} style={{ color: '#fff' }}>15</Option>
+                    <Option value={20} style={{ color: '#fff' }}>20</Option>
+                    <Option value={50} style={{ color: '#fff' }}>50</Option>
+                    <Option value={100} style={{ color: '#fff' }}>100</Option>
                   </Select>
                 </Space>
               </div>
-              <div ref={mapRef} style={{ width: '100%', height: '500px', marginBottom: 20 }} />
+              <div ref={getMapRef(driver.id)} style={{ width: '100%', height: '500px', marginBottom: 20 }} />
               <Table
                 columns={columns}
                 dataSource={getDisplayData()}
