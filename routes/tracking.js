@@ -14,11 +14,21 @@ router.use(logRequest);
 // Отправить GPS координаты (для водителей)
 router.post('/location', requireDriver, async (req, res) => {
   try {
-    const { latitude, longitude, speed, heading, accuracy } = req.body;
+    const { latitude, longitude, speed, heading, accuracy, timestamp } = req.body;
 
     // Валидация координат
     if (!latitude || !longitude) {
       return res.status(400).json({ error: 'Координаты обязательны' });
+    }
+
+    // Проверяем, что координаты являются числами
+    if (typeof latitude !== 'number' || typeof longitude !== 'number') {
+      return res.status(400).json({ error: 'Координаты должны быть числами' });
+    }
+
+    // Проверяем на NaN и Infinity
+    if (isNaN(latitude) || isNaN(longitude) || !isFinite(latitude) || !isFinite(longitude)) {
+      return res.status(400).json({ error: 'Координаты содержат недопустимые значения' });
     }
 
     if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
@@ -27,22 +37,59 @@ router.post('/location', requireDriver, async (req, res) => {
 
     // Нормализуем скорость: если пришла в м/с (редко), конвертируем; если уже км/ч, оставляем
     let normalizedSpeed = null;
-    if (typeof speed === 'number' && !isNaN(speed)) {
+    if (typeof speed === 'number' && !isNaN(speed) && isFinite(speed)) {
       // Если скорость выглядит как м/с (обычно < 60), умножаем на 3.6
       normalizedSpeed = speed < 60 ? speed * 3.6 : speed;
       if (normalizedSpeed < 0) normalizedSpeed = 0;
     }
 
+    // Валидация и нормализация heading
+    let normalizedHeading = null;
+    if (typeof heading === 'number' && !isNaN(heading) && isFinite(heading)) {
+      normalizedHeading = heading;
+      // Нормализуем угол в диапазон 0-360
+      while (normalizedHeading < 0) normalizedHeading += 360;
+      while (normalizedHeading >= 360) normalizedHeading -= 360;
+    }
+
+    // Валидация и нормализация accuracy
+    let normalizedAccuracy = null;
+    if (typeof accuracy === 'number' && !isNaN(accuracy) && isFinite(accuracy) && accuracy > 0) {
+      normalizedAccuracy = accuracy;
+    }
+
+    // Преобразуем timestamp в Date объект
+    let timestampDate = new Date();
+    if (timestamp) {
+      // Если timestamp в миллисекундах (число), преобразуем в Date
+      if (typeof timestamp === 'number') {
+        timestampDate = new Date(timestamp);
+      } else if (typeof timestamp === 'string') {
+        timestampDate = new Date(timestamp);
+      }
+    }
+
+    // Логируем данные перед сохранением
+    console.log('Saving GPS data:', {
+      userId: req.user.userId,
+      latitude,
+      longitude,
+      speed: normalizedSpeed,
+      heading: normalizedHeading,
+      accuracy: normalizedAccuracy,
+      timestamp: timestampDate
+    });
+
     // Сохраняем GPS данные
     const result = await pool.query(
-      `INSERT INTO gps_tracking (user_id, latitude, longitude, speed, heading, accuracy)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO gps_tracking (user_id, latitude, longitude, speed, heading, accuracy, timestamp)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
-      [req.user.userId, latitude, longitude, normalizedSpeed, heading, accuracy]
+      [req.user.userId, latitude, longitude, normalizedSpeed, normalizedHeading, normalizedAccuracy, timestampDate]
     );
 
     // Логируем GPS данные
-    logGPSData(req.user.userId, latitude, longitude, normalizedSpeed, heading);
+    logGPSData(req.user.userId, latitude, longitude, normalizedSpeed, normalizedHeading);
 
     res.json({
       success: true,
@@ -51,8 +98,19 @@ router.post('/location', requireDriver, async (req, res) => {
     });
 
   } catch (error) {
+    console.error('GPS tracking error:', error);
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      detail: error.detail,
+      hint: error.hint,
+      position: error.position
+    });
     logError(error, { route: '/tracking/location', body: req.body, user: req.user });
-    res.status(500).json({ error: 'Ошибка сервера при сохранении GPS данных' });
+    res.status(500).json({ 
+      error: 'Ошибка сервера при сохранении GPS данных',
+      details: error.message 
+    });
   }
 });
 
