@@ -140,9 +140,10 @@ const EnhancedTracking = ({ user, userPermissions }) => {
       })).filter(loc => loc.latitude && loc.longitude);
     } else {
       // Для конкретного водителя показываем историю с лимитом
-      const selectedDriver = drivers.find(d => d.id === activeDriverId);
+      const selectedDriver = drivers.find(d => d.id.toString() === activeDriverId.toString());
+      console.log('Selected driver:', selectedDriver, 'for ID:', activeDriverId);
       if (selectedDriver && selectedDriver.location_history) {
-        return selectedDriver.location_history
+        const history = selectedDriver.location_history
           .sort((a, b) => b.timestamp - a.timestamp)
           .slice(0, pointsLimit)
           .map(loc => ({ 
@@ -151,7 +152,10 @@ const EnhancedTracking = ({ user, userPermissions }) => {
             driver_name: selectedDriver.name, 
             driver_id: activeDriverId 
           }));
+        console.log('Driver history:', history);
+        return history;
       }
+      console.log('No driver or history found');
       return [];
     }
   };
@@ -296,8 +300,24 @@ const EnhancedTracking = ({ user, userPermissions }) => {
       const currentMapRef = getMapRef(activeDriverId);
       const mapKey = activeDriverId;
       
-      if (currentMapRef.current && !mapInstances.current[mapKey]) {
+      // Ждем, пока ref будет готов
+      const waitForRef = () => {
+        return new Promise((resolve) => {
+          const checkRef = () => {
+            if (currentMapRef.current) {
+              resolve();
+            } else {
+              setTimeout(checkRef, 100);
+            }
+          };
+          checkRef();
+        });
+      };
+
+      if (!mapInstances.current[mapKey]) {
         try {
+          await waitForRef();
+          
           // Загружаем Yandex Maps API
           if (!window.ymaps) {
             await new Promise((resolve, reject) => {
@@ -310,14 +330,17 @@ const EnhancedTracking = ({ user, userPermissions }) => {
           }
 
           window.ymaps.ready(() => {
-            if (!mapInstances.current[mapKey]) {
+            if (!mapInstances.current[mapKey] && currentMapRef.current) {
               mapInstances.current[mapKey] = new window.ymaps.Map(currentMapRef.current, {
                 center: [55.75, 37.57], // Москва
                 zoom: 10,
                 controls: ['zoomControl', 'fullscreenControl']
               });
               console.log(`Yandex Map initialized for ${mapKey}`);
-              updateMapMarkers();
+              // Небольшая задержка перед обновлением маркеров
+              setTimeout(() => {
+                updateMapMarkers();
+              }, 100);
             }
           });
         } catch (error) {
@@ -346,8 +369,11 @@ const EnhancedTracking = ({ user, userPermissions }) => {
             `;
           }
         }
-      } else if (mapInstances.current[mapKey]) {
-        updateMapMarkers();
+      } else {
+        // Карта уже существует, обновляем маркеры
+        setTimeout(() => {
+          updateMapMarkers();
+        }, 100);
       }
     };
 
@@ -440,6 +466,25 @@ const EnhancedTracking = ({ user, userPermissions }) => {
 
   return (
     <div style={{ padding: '24px' }}>
+      <style>
+        {`
+          .ant-tabs-tab {
+            color: #fff !important;
+          }
+          .ant-tabs-tab:hover {
+            color: #1890ff !important;
+          }
+          .ant-tabs-tab-active {
+            color: #1890ff !important;
+          }
+          .ant-tabs-tab-active .ant-tabs-tab-btn {
+            color: #1890ff !important;
+          }
+          .ant-tabs-ink-bar {
+            background-color: #1890ff !important;
+          }
+        `}
+      </style>
       <Card>
         <Row justify="space-between" align="middle" style={{ marginBottom: 24 }}>
           <Col>
@@ -510,7 +555,12 @@ const EnhancedTracking = ({ user, userPermissions }) => {
         </Row>
 
         {/* Вкладки и фильтры */}
-        <Tabs activeKey={activeDriverId} onChange={setActiveDriverId}>
+        <Tabs 
+          activeKey={activeDriverId} 
+          onChange={setActiveDriverId}
+          tabBarStyle={{ color: '#fff' }}
+          style={{ color: '#fff' }}
+        >
           <TabPane tab="Все водители" key="all">
             <div ref={mapRef} style={{ width: '100%', height: '500px', marginBottom: 20 }} />
             <Table
