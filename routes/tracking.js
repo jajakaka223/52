@@ -14,11 +14,18 @@ router.use(logRequest);
 // ВРЕМЕННЫЙ ENDPOINT ДЛЯ ОЧИСТКИ GPS ДАННЫХ (удалить после использования)
 router.delete('/clear-all-gps', async (req, res) => {
   try {
+    console.log('=== ОЧИСТКА GPS ДАННЫХ ===');
+    console.log('Пользователь:', req.user.username, 'Роль:', req.user.role);
+    
     const result = await pool.query('DELETE FROM gps_tracking');
+    
+    console.log(`Удалено записей: ${result.rowCount}`);
+    
     res.json({
       success: true,
       message: `Удалено ${result.rowCount} записей из gps_tracking`,
-      deletedCount: result.rowCount
+      deletedCount: result.rowCount,
+      user: req.user.username
     });
   } catch (error) {
     console.error('Ошибка при очистке GPS данных:', error);
