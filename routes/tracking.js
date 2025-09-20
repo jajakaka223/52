@@ -50,6 +50,8 @@ router.post('/location', requireDriver, async (req, res) => {
       // Нормализуем угол в диапазон 0-360
       while (normalizedHeading < 0) normalizedHeading += 360;
       while (normalizedHeading >= 360) normalizedHeading -= 360;
+      // Округляем до целого числа для integer поля в БД
+      normalizedHeading = Math.round(normalizedHeading);
     }
 
     // Валидация и нормализация accuracy
