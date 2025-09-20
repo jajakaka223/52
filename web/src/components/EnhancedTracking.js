@@ -281,25 +281,64 @@ const EnhancedTracking = ({ user, userPermissions }) => {
 
   // Инициализация карты
   useEffect(() => {
-    if (mapRef.current && !initializedRef.current) {
-      // Инициализация Yandex Maps
-      if (window.ymaps) {
-        window.ymaps.ready(() => {
-          if (!mapInstanceRef.current) {
-            mapInstanceRef.current = new window.ymaps.Map(mapRef.current, {
-              center: [55.75, 37.57], // Москва
-              zoom: 10,
-              controls: ['zoomControl', 'fullscreenControl']
+    const initMap = async () => {
+      if (mapRef.current && !initializedRef.current) {
+        try {
+          // Загружаем Yandex Maps API
+          if (!window.ymaps) {
+            await new Promise((resolve, reject) => {
+              const script = document.createElement('script');
+              script.src = 'https://api-maps.yandex.ru/2.1/?lang=ru_RU';
+              script.onload = resolve;
+              script.onerror = reject;
+              document.head.appendChild(script);
             });
-            initializedRef.current = true;
-            console.log('Yandex Map initialized');
           }
-          updateMapMarkers();
-        });
+
+          window.ymaps.ready(() => {
+            if (!mapInstanceRef.current) {
+              mapInstanceRef.current = new window.ymaps.Map(mapRef.current, {
+                center: [55.75, 37.57], // Москва
+                zoom: 10,
+                controls: ['zoomControl', 'fullscreenControl']
+              });
+              initializedRef.current = true;
+              console.log('Yandex Map initialized');
+              updateMapMarkers();
+            }
+          });
+        } catch (error) {
+          console.error('Ошибка загрузки Yandex Maps:', error);
+          // Показываем заглушку
+          if (mapRef.current) {
+            mapRef.current.innerHTML = `
+              <div style="
+                height: 500px; 
+                width: 100%; 
+                background: #1f1f1f; 
+                display: flex; 
+                align-items: center; 
+                justify-content: center; 
+                border: 2px dashed #303030;
+                color: #fff;
+                font-size: 16px;
+                text-align: center;
+              ">
+                <div>
+                  <div style="font-size: 24px; margin-bottom: 10px;">🗺️</div>
+                  <div>Карта недоступна</div>
+                  <div style="font-size: 12px; margin-top: 5px;">Ошибка загрузки Yandex Maps</div>
+                </div>
+              </div>
+            `;
+          }
+        }
+      } else if (initializedRef.current) {
+        updateMapMarkers();
       }
-    } else if (initializedRef.current) {
-      updateMapMarkers();
-    }
+    };
+
+    initMap();
   }, [drivers, activeDriverId, pointsLimit]);
 
   // Обновление меток на карте
@@ -316,7 +355,7 @@ const EnhancedTracking = ({ user, userPermissions }) => {
       return;
     }
 
-    const bounds = new window.ymaps.GeoObjectCollection();
+    const points = [];
 
     displayData.forEach(loc => {
       const latitude = toNumber(loc.latitude);
@@ -324,6 +363,8 @@ const EnhancedTracking = ({ user, userPermissions }) => {
       const accuracy = toNumber(loc.accuracy);
       const speed = toNumber(loc.speed);
       const timestamp = new Date(loc.timestamp).toLocaleString();
+
+      if (latitude === 0 || longitude === 0) return; // Пропускаем невалидные координаты
 
       let preset = 'islands#blueDotIcon';
       let iconColor = '#0000FF'; // Default blue
@@ -346,7 +387,7 @@ const EnhancedTracking = ({ user, userPermissions }) => {
           <b>Координаты:</b> ${latitude.toFixed(6)}, ${longitude.toFixed(6)}<br>
           <b>Точность:</b> ${accuracy}м<br>
           <b>Скорость:</b> ${speed ? (speed * 3.6).toFixed(1) + ' км/ч' : 'N/A'}<br>
-          <b>Направление:</b> ${loc.heading ? loc.heading.toFixed(1) + '°' : 'N/A'}
+          <b>Направление:</b> ${loc.heading ? toNumber(loc.heading).toFixed(1) + '°' : 'N/A'}
         `
       }, {
         preset: preset,
@@ -355,27 +396,30 @@ const EnhancedTracking = ({ user, userPermissions }) => {
 
       mapInstanceRef.current.geoObjects.add(placemark);
       markersRef.current.push(placemark);
-      bounds.add(placemark);
+      points.push([latitude, longitude]);
     });
 
     // Добавляем линию маршрута для конкретного водителя
-    if (activeDriverId !== 'all' && displayData.length > 1) {
-      const polyline = new window.ymaps.Polyline(
-        displayData.map(loc => [toNumber(loc.latitude), toNumber(loc.longitude)]),
-        {},
-        {
-          strokeColor: '#0000FF',
-          strokeWidth: 4,
-          strokeOpacity: 0.7
-        }
-      );
+    if (activeDriverId !== 'all' && points.length > 1) {
+      const polyline = new window.ymaps.Polyline(points, {}, {
+        strokeColor: '#0000FF',
+        strokeWidth: 4,
+        strokeOpacity: 0.7
+      });
       mapInstanceRef.current.geoObjects.add(polyline);
       markersRef.current.push(polyline);
     }
 
     // Центрируем карту на метках
-    if (bounds.getLength() > 0) {
-      mapInstanceRef.current.setBounds(bounds.getBounds(), { checkZoomRange: true, zoomMargin: 30 });
+    if (points.length > 0) {
+      if (points.length === 1) {
+        mapInstanceRef.current.setCenter(points[0], 16);
+      } else {
+        mapInstanceRef.current.setBounds(window.ymaps.util.bounds.fromPoints(points), {
+          checkZoomRange: true,
+          zoomMargin: 30
+        });
+      }
     }
   };
 
@@ -416,6 +460,8 @@ const EnhancedTracking = ({ user, userPermissions }) => {
               title="Всего водителей"
               value={stats.totalDrivers}
               prefix={<UserOutlined />}
+              valueStyle={{ color: '#1890ff' }}
+              titleStyle={{ color: '#fff' }}
             />
           </Col>
           <Col span={6}>
@@ -423,6 +469,8 @@ const EnhancedTracking = ({ user, userPermissions }) => {
               title="Активных"
               value={stats.activeDrivers}
               prefix={<CarOutlined />}
+              valueStyle={{ color: '#52c41a' }}
+              titleStyle={{ color: '#fff' }}
             />
           </Col>
           <Col span={6}>
@@ -430,6 +478,8 @@ const EnhancedTracking = ({ user, userPermissions }) => {
               title="В движении"
               value={stats.movingDrivers}
               prefix={<EnvironmentOutlined />}
+              valueStyle={{ color: '#faad14' }}
+              titleStyle={{ color: '#fff' }}
             />
           </Col>
           <Col span={6}>
@@ -438,6 +488,8 @@ const EnhancedTracking = ({ user, userPermissions }) => {
               value={stats.avgAccuracy}
               suffix="м"
               prefix={<FilterOutlined />}
+              valueStyle={{ color: '#ff4d4f' }}
+              titleStyle={{ color: '#fff' }}
             />
           </Col>
         </Row>
