@@ -147,15 +147,17 @@ const EnhancedTracking = ({ user, userPermissions }) => {
 
   // Форматирование скорости
   const formatSpeed = (speed) => {
-    if (!speed || speed === 0) return '0 км/ч';
-    const kmh = (speed * 3.6).toFixed(1);
+    const numSpeed = toNumber(speed, 0);
+    if (numSpeed === 0) return '0 км/ч';
+    const kmh = (numSpeed * 3.6).toFixed(1);
     return `${kmh} км/ч`;
   };
 
   // Форматирование точности
   const formatAccuracy = (accuracy) => {
-    if (!accuracy) return 'Неизвестно';
-    return `${accuracy.toFixed(1)} м`;
+    const numAccuracy = toNumber(accuracy, 0);
+    if (numAccuracy === 0) return 'Неизвестно';
+    return `${numAccuracy.toFixed(1)} м`;
   };
 
   // Форматирование времени
@@ -167,9 +169,10 @@ const EnhancedTracking = ({ user, userPermissions }) => {
 
   // Получение цвета статуса по точности
   const getAccuracyColor = (accuracy) => {
-    if (!accuracy) return 'default';
-    if (accuracy <= 10) return 'green';
-    if (accuracy <= 50) return 'orange';
+    const numAccuracy = toNumber(accuracy, 0);
+    if (numAccuracy === 0) return 'default';
+    if (numAccuracy <= 10) return 'green';
+    if (numAccuracy <= 50) return 'orange';
     return 'red';
   };
 
@@ -177,52 +180,65 @@ const EnhancedTracking = ({ user, userPermissions }) => {
   const columns = [
     {
       title: 'Водитель',
-      dataIndex: 'user_id',
-      key: 'user_id',
-      render: (userId) => (
+      dataIndex: 'driver_name',
+      key: 'driver_name',
+      render: (driverName) => (
         <Space>
           <UserOutlined />
-          <span>Водитель {userId}</span>
+          <span>{driverName || 'Неизвестно'}</span>
         </Space>
       ),
     },
     {
       title: 'Координаты',
       key: 'coordinates',
-      render: (record) => (
-        <Space>
-          <EnvironmentOutlined />
-          <span>{record.latitude.toFixed(6)}, {record.longitude.toFixed(6)}</span>
-        </Space>
-      ),
+      render: (record) => {
+        const lat = toNumber(record.latitude, 0);
+        const lng = toNumber(record.longitude, 0);
+        return (
+          <Space>
+            <EnvironmentOutlined />
+            <span>{lat.toFixed(6)}, {lng.toFixed(6)}</span>
+          </Space>
+        );
+      },
     },
     {
       title: 'Скорость',
       dataIndex: 'speed',
       key: 'speed',
-      render: (speed) => (
-        <Tag color={speed > 0 ? 'blue' : 'default'}>
-          {formatSpeed(speed)}
-        </Tag>
-      ),
+      render: (speed) => {
+        const numSpeed = toNumber(speed, 0);
+        return (
+          <Tag color={numSpeed > 0 ? 'blue' : 'default'}>
+            {formatSpeed(speed)}
+          </Tag>
+        );
+      },
     },
     {
       title: 'Точность',
       dataIndex: 'accuracy',
       key: 'accuracy',
-      render: (accuracy) => (
-        <Tag color={getAccuracyColor(accuracy)}>
-          {formatAccuracy(accuracy)}
-        </Tag>
-      ),
+      render: (accuracy) => {
+        const numAccuracy = toNumber(accuracy, 0);
+        return (
+          <Tag color={getAccuracyColor(numAccuracy)}>
+            {formatAccuracy(accuracy)}
+          </Tag>
+        );
+      },
     },
     {
       title: 'Направление',
       dataIndex: 'heading',
       key: 'heading',
-      render: (heading) => (
-        <span>{heading ? `${heading.toFixed(0)}°` : '—'}</span>
-      ),
+      render: (heading) => {
+        const numHeading = toNumber(heading, 0);
+        return (
+          <span>{numHeading > 0 ? `${numHeading.toFixed(0)}°` : '—'}</span>
+        );
+      },
     },
     {
       title: 'Время',
