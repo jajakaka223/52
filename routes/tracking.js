@@ -11,6 +11,21 @@ router.use(authenticateToken);
 router.use(checkUserActive);
 router.use(logRequest);
 
+// ВРЕМЕННЫЙ ENDPOINT ДЛЯ ОЧИСТКИ GPS ДАННЫХ (удалить после использования)
+router.delete('/clear-all-gps', async (req, res) => {
+  try {
+    const result = await pool.query('DELETE FROM gps_tracking');
+    res.json({
+      success: true,
+      message: `Удалено ${result.rowCount} записей из gps_tracking`,
+      deletedCount: result.rowCount
+    });
+  } catch (error) {
+    console.error('Ошибка при очистке GPS данных:', error);
+    res.status(500).json({ error: 'Ошибка при очистке данных' });
+  }
+});
+
 // Отправить GPS координаты (для водителей)
 router.post('/location', requireDriver, async (req, res) => {
   try {
