@@ -287,11 +287,6 @@ const EnhancedTracking = ({ user, userPermissions }) => {
 
   useEffect(() => {
     loadDriversData();
-    
-    // Автообновление каждые 30 секунд
-    const interval = setInterval(loadDriversData, 30000);
-    
-    return () => clearInterval(interval);
   }, []);
 
   // Инициализация карты
@@ -481,6 +476,9 @@ const EnhancedTracking = ({ user, userPermissions }) => {
           <Col>
             <Title level={2} style={{ margin: 0 }}>
               <CarOutlined /> Отслеживание водителей
+              <span style={{ fontSize: 14, fontWeight: 'normal', color: '#8c8c8c', marginLeft: 8 }}>
+                (обновление вручную)
+              </span>
             </Title>
           </Col>
           <Col>
