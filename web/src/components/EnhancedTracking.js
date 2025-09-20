@@ -440,16 +440,7 @@ const EnhancedTracking = ({ user, userPermissions }) => {
       points.push([latitude, longitude]);
     });
 
-    // Добавляем линию маршрута для конкретного водителя
-    if (activeDriverId !== 'all' && points.length > 1) {
-      const polyline = new window.ymaps.Polyline(points, {}, {
-        strokeColor: '#0000FF',
-        strokeWidth: 4,
-        strokeOpacity: 0.7
-      });
-      mapInstance.geoObjects.add(polyline);
-      markersRef.current.push(polyline);
-    }
+    // Убираем линии маршрута - показываем только метки
 
     // Центрируем карту на метках
     if (points.length > 0) {
