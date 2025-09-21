@@ -56,26 +56,26 @@ if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_PRIVATE_KEY && proce
   console.log('Firebase environment variables not found, push notifications disabled');
 }
 
-// Получить все уведомления
+// Получить все push-уведомления
 router.get('/', authenticateToken, async (req, res) => {
   try {
     const db = getPool();
     const result = await db.query(
-      'SELECT * FROM notifications ORDER BY created_at DESC LIMIT 50'
+      'SELECT * FROM notifications_push ORDER BY created_at DESC LIMIT 50'
     );
     res.json(result.rows);
   } catch (error) {
-    console.error('Error fetching notifications:', error);
+    console.error('Error fetching push notifications:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// Получить количество непрочитанных уведомлений
+// Получить количество непрочитанных push-уведомлений
 router.get('/unread-count', authenticateToken, async (req, res) => {
   try {
     const db = getPool();
     const result = await db.query(
-      'SELECT COUNT(*) as count FROM notifications WHERE created_at > NOW() - INTERVAL \'7 days\''
+      'SELECT COUNT(*) as count FROM notifications_push WHERE created_at > NOW() - INTERVAL \'7 days\''
     );
     res.json({ count: parseInt(result.rows[0].count) });
   } catch (error) {
@@ -93,11 +93,11 @@ router.post('/send', authenticateToken, async (req, res) => {
   }
 
   try {
-    // Сохраняем уведомление в базу данных
+    // Сохраняем push-уведомление в базу данных
     const db = getPool();
     const result = await db.query(
-      'INSERT INTO notifications (title, body, created_at) VALUES ($1, $2, NOW()) RETURNING *',
-      [title, body]
+      'INSERT INTO notifications_push (title, body, created_at, status) VALUES ($1, $2, NOW(), $3) RETURNING *',
+      [title, body, 'pending']
     );
 
     const notification = result.rows[0];
@@ -124,6 +124,10 @@ router.post('/send', authenticateToken, async (req, res) => {
 
           const response = await admin.messaging().sendMulticast(message);
           console.log(`Push notification sent to ${response.successCount} devices`);
+          
+          // Обновляем статус уведомления
+          await db.query('UPDATE notifications_push SET status = $1, sent_at = NOW() WHERE id = $2', 
+            ['sent', notification.id]);
           
           if (response.failureCount > 0) {
             console.log(`Failed to send to ${response.failureCount} devices`);
@@ -172,7 +176,7 @@ router.delete('/:id', authenticateToken, async (req, res) => {
 
   try {
     const db = getPool();
-    const result = await db.query('DELETE FROM notifications WHERE id = $1 RETURNING *', [id]);
+    const result = await db.query('DELETE FROM notifications_push WHERE id = $1 RETURNING *', [id]);
     
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Notification not found' });
