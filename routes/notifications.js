@@ -215,18 +215,17 @@ router.post('/send', authenticateToken, async (req, res) => {
               tokens: tokens
             };
 
-            try {
-              const response = await admin.messaging().sendMulticast(message);
-              console.log(`Push notification sent to ${response.successCount} devices`);
-              pushCount = response.successCount;
-              
-              // Обновляем статус уведомления
-              await db.query('UPDATE notifications_push SET status = $1, sent_at = NOW() WHERE id = $2', 
-                ['sent', notification.id]);
-              
-              if (response.failureCount > 0) {
-                console.log(`Failed to send to ${response.failureCount} devices`);
-                // Удаляем недействительные токены
+            const response = await admin.messaging().sendMulticast(message);
+            console.log(`Push notification sent to ${response.successCount} devices`);
+            pushCount = response.successCount;
+            
+            // Обновляем статус уведомления
+            await db.query('UPDATE notifications_push SET status = $1, sent_at = NOW() WHERE id = $2', 
+              ['sent', notification.id]);
+            
+            if (response.failureCount > 0) {
+              console.log(`Failed to send to ${response.failureCount} devices`);
+              // Удаляем недействительные токены
               const invalidTokens = [];
               response.responses.forEach((resp, idx) => {
                 if (!resp.success && resp.error) {
