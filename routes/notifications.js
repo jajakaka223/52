@@ -222,6 +222,11 @@ router.post('/send', authenticateToken, async (req, res) => {
               let successCount = 0;
               let failureCount = 0;
               
+              console.log(`📱 Sending push notification to ${tokens.length} devices:`);
+              tokens.forEach((token, index) => {
+                console.log(`  Device ${index + 1}: ${token.substring(0, 20)}...`);
+              });
+              
               for (const token of tokens) {
                 try {
                   const singleMessage = {
@@ -236,10 +241,14 @@ router.post('/send', authenticateToken, async (req, res) => {
                     token: token
                   };
                   
-                  await admin.messaging().send(singleMessage);
+                  console.log(`📤 Sending to token: ${token.substring(0, 20)}...`);
+                  const response = await admin.messaging().send(singleMessage);
+                  console.log(`✅ Successfully sent to token: ${token.substring(0, 20)}... (Message ID: ${response})`);
                   successCount++;
                 } catch (error) {
-                  console.error(`Failed to send to token ${token.substring(0, 20)}...:`, error.message);
+                  console.error(`❌ Failed to send to token ${token.substring(0, 20)}...:`, error.message);
+                  console.error(`   Error code: ${error.code}`);
+                  console.error(`   Error details:`, error);
                   failureCount++;
                 }
               }
