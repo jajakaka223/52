@@ -77,13 +77,20 @@ router.get('/', authenticateToken, async (req, res) => {
   }
 });
 
-// Получить историю push-уведомлений для мобильного приложения
+// Получить историю push-уведомлений для мобильного приложения (персональная)
 router.get('/push-history', authenticateToken, async (req, res) => {
   try {
     const db = getPool();
+    const userId = req.user.userId;
+    
+    console.log(`📱 Fetching personal push history for user ${userId}`);
+    
     const result = await db.query(
-      'SELECT * FROM notifications_push ORDER BY created_at DESC LIMIT 50'
+      'SELECT * FROM notifications_push WHERE recipient_id = $1 ORDER BY created_at DESC LIMIT 50',
+      [userId]
     );
+    
+    console.log(`✅ Found ${result.rows.length} personal push notifications for user ${userId}`);
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching push notifications history:', error);
