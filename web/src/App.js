@@ -4,7 +4,7 @@ import ruRU from 'antd/es/locale/ru_RU';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ru';
 import api from './config/http';
-import { UserOutlined, LogoutOutlined, DashboardOutlined, CarOutlined, FileTextOutlined, BarChartOutlined, SettingOutlined, BulbOutlined, DollarOutlined, ToolOutlined, EnvironmentOutlined, CreditCardOutlined, BellOutlined } from '@ant-design/icons';
+import { UserOutlined, LogoutOutlined, DashboardOutlined, CarOutlined, FileTextOutlined, BarChartOutlined, SettingOutlined, BulbOutlined, DollarOutlined, ToolOutlined, EnvironmentOutlined, CreditCardOutlined } from '@ant-design/icons';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import Orders from './components/Orders';
@@ -18,7 +18,6 @@ import Budget from './components/Budget';
 import Salary from './components/Salary';
 import NotificationBell from './components/NotificationBell';
 import Notifications from './components/Notifications';
-import NotificationsPage from './components/NotificationsPage';
 
 const { Header, Sider, Content } = Layout;
 
@@ -28,7 +27,7 @@ function App() {
   const [user, setUser] = useState(null);
   const [userPermissions, setUserPermissions] = useState(null);
   const [selectedMenu, setSelectedMenu] = useState(() => localStorage.getItem('ui_selected_menu') || 'dashboard');
-  const [theme, setTheme] = useState('dark');
+  const [theme, setTheme] = useState(() => localStorage.getItem('ui_theme') || 'light');
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
 
@@ -184,10 +183,19 @@ function App() {
     }
   }, [user?.role, fetchUserPermissions]);
 
-  // Устанавливаем темную тему
+  // синхронизируем тему
   useEffect(() => {
-    try { document.body.setAttribute('data-theme', 'dark'); } catch (_) {}
-  }, []);
+    localStorage.setItem('ui_theme', theme);
+    try { document.body.setAttribute('data-theme', theme); } catch (_) {}
+  }, [theme]);
+
+  // Принудительно обновляем компоненты при смене темы
+  const [themeKey, setThemeKey] = useState(0);
+  useEffect(() => {
+    setThemeKey(prev => prev + 1);
+  }, [theme]);
+
+  const toggleTheme = () => setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
 
   // сохраняем выбранную вкладку, чтобы после F5 остаться на той же
   useEffect(() => {
@@ -210,13 +218,13 @@ function App() {
   const renderContent = () => {
     switch (selectedMenu) {
       case 'dashboard':
-        return <Dashboard user={user} theme="dark" userPermissions={userPermissions} />;
+        return <Dashboard user={user} theme={theme} userPermissions={userPermissions} />;
       case 'orders':
-        return <Orders user={user} theme="dark" userPermissions={userPermissions} />;
+        return <Orders user={user} theme={theme} userPermissions={userPermissions} />;
       case 'budget':
         return <Budget userPermissions={userPermissions} />;
       case 'expenses':
-        return <Expenses user={user} theme="dark" userPermissions={userPermissions} />;
+        return <Expenses user={user} theme={theme} userPermissions={userPermissions} />;
       case 'salary':
         return <Salary userPermissions={userPermissions} user={user} />;
       case 'vehicles':
@@ -226,13 +234,11 @@ function App() {
       case 'tracking':
         return <EnhancedTracking user={user} userPermissions={userPermissions} />;
       case 'reports':
-        return <Reports user={user} theme="dark" userPermissions={userPermissions} />;
+        return <Reports user={user} theme={theme} userPermissions={userPermissions} />;
       case 'settings':
         return <Settings user={user} userPermissions={userPermissions} />;
-      case 'notifications':
-        return <NotificationsPage user={user} userPermissions={userPermissions} />;
       default:
-        return <Dashboard user={user} theme="dark" userPermissions={userPermissions} />;
+        return <Dashboard user={user} theme={theme} userPermissions={userPermissions} />;
     }
   };
 
@@ -243,22 +249,22 @@ function App() {
 
   return (
     <ConfigProvider locale={ruRU}>
-    <Layout style={{ minHeight: '100vh', background: '#141414' }}>
+    <Layout style={{ minHeight: '100vh', background: theme === 'dark' ? '#0f0f0f' : '#f5f5f5' }}>
       <Sider
         width={250}
         collapsible
         collapsed={isCollapsed}
         onCollapse={setIsCollapsed}
         breakpoint="lg"
-        theme="dark"
+        theme={theme === 'dark' ? 'dark' : 'light'}
         trigger={
           <div style={{ 
             height: 48, 
             display: 'flex', 
             alignItems: 'center', 
             justifyContent: 'center', 
-            borderTop: '1px solid #303030', 
-            background: '#141414' 
+            borderTop: theme === 'dark' ? '1px solid #303030' : '1px solid #f0f0f0', 
+            background: theme === 'dark' ? '#141414' : undefined 
           }}>
             <Button
               type="primary"
@@ -270,14 +276,14 @@ function App() {
           </div>
         }
       >
-        <div style={{ padding: '16px', color: 'white', display: 'flex', alignItems: 'center', gap: 12, justifyContent: isCollapsed ? 'center' : 'flex-start' }}>
+        <div style={{ padding: '16px', color: theme === 'dark' ? 'white' : '#111', display: 'flex', alignItems: 'center', gap: 12, justifyContent: isCollapsed ? 'center' : 'flex-start' }}>
           <img src="/logo-52express.png" alt={'52 EXPRESS'} style={{ width: 40, height: 40, objectFit: 'contain', display: 'block', opacity: 0.95 }} />
           {!isCollapsed && (
-            <div style={{ fontFamily: 'PFDinTextPro-Bold, system-ui, -apple-system, Segoe UI, Roboto, Arial', fontWeight: 700, letterSpacing: 1, fontSize: 20, color: '#fff' }}>52 EXPRESS</div>
+            <div style={{ fontFamily: 'PFDinTextPro-Bold, system-ui, -apple-system, Segoe UI, Roboto, Arial', fontWeight: 700, letterSpacing: 1, fontSize: 20, color: theme === 'dark' ? '#fff' : '#000' }}>52 EXPRESS</div>
           )}
         </div>
         <Menu
-          theme="dark"
+          theme={theme === 'dark' ? 'dark' : 'light'}
           mode="inline"
           selectedKeys={[selectedMenu]}
           onSelect={({ key }) => setSelectedMenu(key)}
@@ -328,11 +334,6 @@ function App() {
               Отчеты
             </Menu.Item>
           )}
-          {userPermissions?.can_send_notifications && (
-            <Menu.Item key="notifications" icon={<BellOutlined />}>
-              Уведомления
-            </Menu.Item>
-          )}
           {userPermissions?.can_view_settings && (
             <Menu.Item key="settings" icon={<SettingOutlined />}>
               Настройки
@@ -342,7 +343,7 @@ function App() {
       </Sider>
       
       <Layout>
-        <Header style={{ background: '#1c1c1c', color: '#ddd', padding: '0 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Header style={{ background: theme === 'dark' ? '#1c1c1c' : '#fff', color: theme === 'dark' ? '#ddd' : '#000', padding: '0 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
             <span style={{ marginRight: '16px' }}>
               <UserOutlined /> {user?.fullName && user.fullName.trim() ? user.fullName.split(' ')[0] : user?.username}
@@ -354,13 +355,21 @@ function App() {
           <Space>
             {userPermissions?.can_send_notifications && (
               <NotificationBell 
-                isDark={true} 
+                isDark={theme === 'dark'} 
                 onClick={() => setNotificationsOpen(true)}
               />
             )}
+            <Tooltip title={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}>
+              <Button
+                type="primary"
+                style={theme === 'dark' ? { background: '#faad14', borderColor: '#faad14', color: '#000' } : { background: '#1890ff', borderColor: '#1890ff', color: '#fff' }}
+                icon={<BulbOutlined />}
+                onClick={toggleTheme}
+              />
+            </Tooltip>
             <Button 
               type="primary"
-              style={{ background: '#ff4d4f', borderColor: '#ff4d4f', color: '#fff' }}
+              style={theme === 'dark' ? { background: '#ff4d4f', borderColor: '#ff4d4f', color: '#fff' } : { background: '#ff4d4f', borderColor: '#ff4d4f', color: '#fff' }}
               icon={<LogoutOutlined />} 
               onClick={handleLogout}
             >
@@ -369,14 +378,16 @@ function App() {
           </Space>
         </Header>
         
-        <Content style={{ margin: '12px', padding: '12px', background: '#1f1f1f', borderRadius: '6px' }}>
-          {renderContent()}
+        <Content style={{ margin: '12px', padding: '12px', background: theme === 'dark' ? '#1f1f1f' : '#fff', borderRadius: '6px' }}>
+          <div key={themeKey}>
+            {renderContent()}
+          </div>
         </Content>
       </Layout>
       
       {/* Drawer с уведомлениями */}
       <Notifications 
-        isDark={true} 
+        isDark={theme === 'dark'} 
         open={notificationsOpen} 
         onClose={() => setNotificationsOpen(false)} 
       />
