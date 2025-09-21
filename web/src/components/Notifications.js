@@ -20,8 +20,8 @@ const Notifications = ({ isDark, open, onClose }) => {
   const fetchNotifications = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.get('/api/notifications', { headers });
-      const data = res.data?.notifications || [];
+      const res = await api.get('/api/notifications/user', { headers });
+      const data = res.data || [];
       setNotifications(data);
       setUnreadCount(data.filter(n => !n.is_read).length);
     } catch (e) {
@@ -40,7 +40,7 @@ const Notifications = ({ isDark, open, onClose }) => {
 
   const markAsRead = async (id) => {
     try {
-      await api.patch(`/api/notifications/${id}/read`, {}, { headers });
+      await api.put(`/api/notifications/user/${id}/read`, {}, { headers });
       setNotifications(prev => 
         prev.map(n => n.id === id ? { ...n, is_read: true } : n)
       );
@@ -64,7 +64,7 @@ const Notifications = ({ isDark, open, onClose }) => {
 
   const deleteNotification = async (id) => {
     try {
-      await api.delete(`/api/notifications/${id}`, { headers });
+      await api.delete(`/api/notifications/user/${id}`, { headers });
       setNotifications(prev => prev.filter(n => n.id !== id));
       setUnreadCount(prev => {
         const deleted = notifications.find(n => n.id === id);

@@ -72,6 +72,20 @@ router.get('/user', authenticateToken, async (req, res) => {
   }
 });
 
+// Получить список пользователей для выбора
+router.get('/users', authenticateToken, async (req, res) => {
+  try {
+    const db = getPool();
+    const result = await db.query(
+      'SELECT id, username, full_name, role FROM users WHERE is_active = true ORDER BY full_name'
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Получить количество непрочитанных push-уведомлений
 router.get('/unread-count', authenticateToken, async (req, res) => {
   try {
@@ -101,86 +115,136 @@ router.get('/user/unread-count', authenticateToken, async (req, res) => {
   }
 });
 
-// Отправить push-уведомление
+// Отправить уведомление (универсальный endpoint)
 router.post('/send', authenticateToken, async (req, res) => {
-  const { title, body } = req.body;
+  const { title, body, type, recipientId } = req.body;
 
-  if (!title || !body) {
-    return res.status(400).json({ error: 'Title and body are required' });
+  if (!title || !body || !type) {
+    return res.status(400).json({ error: 'Title, body and type are required' });
   }
 
   try {
-    // Сохраняем push-уведомление в базу данных
     const db = getPool();
-    const result = await db.query(
-      'INSERT INTO notifications_push (title, body, created_at, status) VALUES ($1, $2, NOW(), $3) RETURNING *',
-      [title, body, 'pending']
-    );
+    let webCount = 0;
+    let pushCount = 0;
 
-    const notification = result.rows[0];
-
-    // Отправляем push-уведомление если Firebase инициализирован
-    if (firebaseInitialized) {
-      try {
-        // Получаем все FCM токены из базы данных
-        const tokensResult = await db.query('SELECT fcm_token FROM users WHERE fcm_token IS NOT NULL');
-        const tokens = tokensResult.rows.map(row => row.fcm_token);
-
-        if (tokens.length > 0) {
-          const message = {
-            notification: {
-              title: title,
-              body: body
-            },
-            data: {
-              notificationId: notification.id.toString(),
-              timestamp: new Date().toISOString()
-            },
-            tokens: tokens
-          };
-
-          const response = await admin.messaging().sendMulticast(message);
-          console.log(`Push notification sent to ${response.successCount} devices`);
-          
-          // Обновляем статус уведомления
-          await db.query('UPDATE notifications_push SET status = $1, sent_at = NOW() WHERE id = $2', 
-            ['sent', notification.id]);
-          
-          if (response.failureCount > 0) {
-            console.log(`Failed to send to ${response.failureCount} devices`);
-            // Удаляем недействительные токены
-            const invalidTokens = [];
-            response.responses.forEach((resp, idx) => {
-              if (!resp.success && resp.error) {
-                if (resp.error.code === 'messaging/invalid-registration-token' || 
-                    resp.error.code === 'messaging/registration-token-not-registered') {
-                  invalidTokens.push(tokens[idx]);
-                }
-              }
-            });
-
-            if (invalidTokens.length > 0) {
-              await db.query('UPDATE users SET fcm_token = NULL WHERE fcm_token = ANY($1)', [invalidTokens]);
-              console.log(`Removed ${invalidTokens.length} invalid FCM tokens`);
-            }
-          }
-        } else {
-          console.log('No FCM tokens found in database');
+    if (type === 'web' || type === 'all' || type === 'web_user') {
+      // Отправляем web уведомления
+      if (recipientId || type === 'web_user') {
+        // Конкретному пользователю
+        const targetUserId = recipientId || req.body.recipientId;
+        await db.query(
+          'INSERT INTO notifications (title, message, recipient_id, sender_id) VALUES ($1, $2, $3, $4)',
+          [title, body, targetUserId, req.user.userId]
+        );
+        webCount = 1;
+      } else {
+        // Всем пользователям
+        const usersResult = await db.query('SELECT id FROM users WHERE is_active = true');
+        const userIds = usersResult.rows.map(row => row.id);
+        
+        for (const userId of userIds) {
+          await db.query(
+            'INSERT INTO notifications (title, message, recipient_id, sender_id) VALUES ($1, $2, $3, $4)',
+            [title, body, userId, req.user.userId]
+          );
         }
-      } catch (firebaseError) {
-        console.error('Error sending push notification:', firebaseError);
-        // Не возвращаем ошибку, так как уведомление уже сохранено в БД
+        webCount = userIds.length;
       }
-    } else {
-      console.log('Firebase not initialized, notification saved to database only');
     }
+
+    if (type === 'push' || type === 'all' || type === 'push_user') {
+      // Отправляем push уведомления
+      const pushResult = await db.query(
+        'INSERT INTO notifications_push (title, body, created_at, status) VALUES ($1, $2, NOW(), $3) RETURNING *',
+        [title, body, 'pending']
+      );
+
+      const notification = pushResult.rows[0];
+
+      // Отправляем push-уведомление если Firebase инициализирован
+      if (firebaseInitialized) {
+        try {
+          // Получаем FCM токены из базы данных
+          let tokensResult;
+          if (recipientId || type === 'push_user') {
+            // Конкретному пользователю
+            const targetUserId = recipientId || req.body.recipientId;
+            tokensResult = await db.query('SELECT fcm_token FROM users WHERE id = $1 AND fcm_token IS NOT NULL', [targetUserId]);
+          } else {
+            // Всем пользователям
+            tokensResult = await db.query('SELECT fcm_token FROM users WHERE fcm_token IS NOT NULL');
+          }
+          const tokens = tokensResult.rows.map(row => row.fcm_token);
+
+          if (tokens.length > 0) {
+            const message = {
+              notification: {
+                title: title,
+                body: body
+              },
+              data: {
+                notificationId: notification.id.toString(),
+                timestamp: new Date().toISOString()
+              },
+              tokens: tokens
+            };
+
+            const response = await admin.messaging().sendMulticast(message);
+            console.log(`Push notification sent to ${response.successCount} devices`);
+            pushCount = response.successCount;
+            
+            // Обновляем статус уведомления
+            await db.query('UPDATE notifications_push SET status = $1, sent_at = NOW() WHERE id = $2', 
+              ['sent', notification.id]);
+            
+            if (response.failureCount > 0) {
+              console.log(`Failed to send to ${response.failureCount} devices`);
+              // Удаляем недействительные токены
+              const invalidTokens = [];
+              response.responses.forEach((resp, idx) => {
+                if (!resp.success && resp.error) {
+                  if (resp.error.code === 'messaging/invalid-registration-token' || 
+                      resp.error.code === 'messaging/registration-token-not-registered') {
+                    invalidTokens.push(tokens[idx]);
+                  }
+                }
+              });
+
+              if (invalidTokens.length > 0) {
+                await db.query('UPDATE users SET fcm_token = NULL WHERE fcm_token = ANY($1)', [invalidTokens]);
+                console.log(`Removed ${invalidTokens.length} invalid FCM tokens`);
+              }
+            }
+          } else {
+            console.log('No FCM tokens found in database');
+            await db.query('UPDATE notifications_push SET status = $1 WHERE id = $2', 
+              ['failed', notification.id]);
+          }
+        } catch (firebaseError) {
+          console.error('Firebase error:', firebaseError);
+          await db.query('UPDATE notifications_push SET status = $1 WHERE id = $2', 
+            ['failed', notification.id]);
+        }
+      } else {
+        console.log('Firebase not initialized, push notification not sent');
+        await db.query('UPDATE notifications_push SET status = $1 WHERE id = $2', 
+          ['failed', notification.id]);
+      }
+    }
+
+    let message = 'Уведомление отправлено успешно';
+    if (type === 'web' || type === 'web_user') message += ` (${webCount} web)`;
+    else if (type === 'push' || type === 'push_user') message += ` (${pushCount} push)`;
+    else if (type === 'all') message += ` (${webCount} web, ${pushCount} push)`;
 
     res.json({ 
       success: true, 
-      message: 'Notification sent successfully',
-      notification: notification
+      message: message,
+      type: type,
+      webCount,
+      pushCount
     });
-
   } catch (error) {
     console.error('Error sending notification:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -205,6 +269,26 @@ router.put('/user/:id/read', authenticateToken, async (req, res) => {
     res.json({ success: true, message: 'Notification marked as read' });
   } catch (error) {
     console.error('Error marking notification as read:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Отметить все уведомления пользователя как прочитанные
+router.patch('/mark-all-read', authenticateToken, async (req, res) => {
+  try {
+    const db = getPool();
+    const result = await db.query(
+      'UPDATE notifications SET is_read = true WHERE recipient_id = $1 AND is_read = false RETURNING *',
+      [req.user.userId]
+    );
+
+    res.json({ 
+      success: true, 
+      message: `${result.rows.length} уведомлений отмечено как прочитанные`,
+      count: result.rows.length
+    });
+  } catch (error) {
+    console.error('Error marking all notifications as read:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

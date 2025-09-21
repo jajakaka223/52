@@ -27,10 +27,6 @@ const Settings = ({ user, userPermissions }) => {
   const [roles, setRoles] = useState([]);
   const [rolePermissions, setRolePermissions] = useState(null);
   const [permModalOpen, setPermModalOpen] = useState(false);
-  // eslint-disable-next-line no-unused-vars
-  const [notificationModalOpen, setNotificationModalOpen] = useState(false);
-  // eslint-disable-next-line no-unused-vars
-  const [notificationForm] = Form.useForm();
 
   // Слушаем изменения темы
   useEffect(() => {
@@ -137,29 +133,6 @@ const Settings = ({ user, userPermissions }) => {
     }
   };
 
-  // eslint-disable-next-line no-unused-vars
-  const sendNotification = async (values) => {
-    try {
-      if (values.sendToAll) {
-        await api.post('/api/notifications/send-all', {
-          title: values.title,
-          message: values.message
-        }, { headers });
-        message.success('Уведомление отправлено всем пользователям');
-      } else {
-        await api.post('/api/notifications/send', {
-          title: values.title,
-          message: values.message,
-          recipientId: values.recipientId
-        }, { headers });
-        message.success('Уведомление отправлено');
-      }
-      setNotificationModalOpen(false);
-      notificationForm.resetFields();
-    } catch (e) {
-      message.error(e?.response?.data?.error || 'Не удалось отправить уведомление');
-    }
-  };
 
   const handleUpdate = async (values) => {
     try {
@@ -512,84 +485,6 @@ const Settings = ({ user, userPermissions }) => {
         </div>
       </Modal>
 
-      <Modal 
-        title="Отправить уведомление" 
-        open={notificationModalOpen} 
-        onCancel={() => setNotificationModalOpen(false)} 
-        onOk={() => notificationForm.submit()}
-        okText="Отправить"
-        cancelText="Отмена"
-        width={600}
-        bodyStyle={{ 
-          background: isDark ? '#1f1f1f' : '#fff',
-          color: isDark ? '#fff' : '#000'
-        }}
-        headerStyle={{ 
-          background: isDark ? '#141414' : '#fafafa',
-          borderBottom: isDark ? '1px solid #303030' : '1px solid #f0f0f0',
-          color: isDark ? '#fff' : '#000'
-        }}
-      >
-        <Form layout="vertical" form={notificationForm} onFinish={sendNotification}>
-          <Form.Item name="sendToAll" valuePropName="checked">
-            <Checkbox style={{ color: isDark ? '#fff' : '#000' }}>Отправить всем пользователям</Checkbox>
-          </Form.Item>
-          
-          <Form.Item 
-            name="recipientId" 
-            label={<span style={{ color: isDark ? '#fff' : '#000' }}>Получатель</span>}
-            rules={[
-              ({ getFieldValue }) => ({
-                validator(_, value) {
-                  if (getFieldValue('sendToAll') || value) {
-                    return Promise.resolve();
-                  }
-                  return Promise.reject(new Error('Выберите получателя или отправьте всем'));
-                },
-              }),
-            ]}
-          >
-            <Select 
-              placeholder="Выберите получателя" 
-              disabled={notificationForm.getFieldValue('sendToAll')}
-              showSearch
-              optionFilterProp="children"
-              style={{ color: isDark ? '#fff' : '#000' }}
-            >
-              {users.map(u => (
-                <Option key={u.id} value={u.id}>
-                  {u.full_name || u.username} ({u.role})
-                </Option>
-              ))}
-            </Select>
-          </Form.Item>
-
-          <Form.Item 
-            name="title" 
-            label={<span style={{ color: isDark ? '#fff' : '#000' }}>Заголовок</span>}
-            rules={[{ required: true, message: 'Укажите заголовок уведомления' }]}
-          >
-            <Input 
-              placeholder="Краткое описание уведомления" 
-              style={{ color: isDark ? '#fff' : '#000' }}
-            />
-          </Form.Item>
-
-          <Form.Item 
-            name="message" 
-            label={<span style={{ color: isDark ? '#fff' : '#000' }}>Текст уведомления</span>}
-            rules={[{ required: true, message: 'Укажите текст уведомления' }]}
-          >
-            <Input.TextArea 
-              rows={4} 
-              placeholder="Подробное описание уведомления..."
-              showCount
-              maxLength={1000}
-              style={{ color: isDark ? '#fff' : '#000' }}
-            />
-          </Form.Item>
-        </Form>
-      </Modal>
     </div>
   );
 };
