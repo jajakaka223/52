@@ -1,11 +1,10 @@
 const express = require('express');
 const router = express.Router();
-const { Pool } = require('pg');
 const admin = require('firebase-admin');
+const { getPool } = require('../config/database');
 
 // Инициализация Firebase Admin SDK
 let firebaseInitialized = false;
-let db;
 
 // Инициализация Firebase только если есть необходимые переменные окружения
 if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_PRIVATE_KEY && process.env.FIREBASE_CLIENT_EMAIL) {
@@ -38,20 +37,10 @@ if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_PRIVATE_KEY && proce
   console.log('Firebase environment variables not found, push notifications disabled');
 }
 
-// Инициализация подключения к базе данных
-try {
-  db = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
-  });
-  console.log('Database connection established for notifications');
-} catch (error) {
-  console.error('Database connection error:', error);
-}
-
 // Получить все уведомления
 router.get('/', async (req, res) => {
   try {
+    const db = getPool();
     const result = await db.query(
       'SELECT * FROM notifications ORDER BY created_at DESC LIMIT 50'
     );
@@ -72,6 +61,7 @@ router.post('/send', async (req, res) => {
 
   try {
     // Сохраняем уведомление в базу данных
+    const db = getPool();
     const result = await db.query(
       'INSERT INTO notifications (title, body, created_at) VALUES ($1, $2, NOW()) RETURNING *',
       [title, body]
@@ -148,6 +138,7 @@ router.delete('/:id', async (req, res) => {
   const { id } = req.params;
 
   try {
+    const db = getPool();
     const result = await db.query('DELETE FROM notifications WHERE id = $1 RETURNING *', [id]);
     
     if (result.rows.length === 0) {
@@ -170,6 +161,7 @@ router.post('/register-token', async (req, res) => {
   }
 
   try {
+    const db = getPool();
     await db.query(
       'UPDATE users SET fcm_token = $1 WHERE id = $2',
       [token, userId]
