@@ -2,25 +2,7 @@ const express = require('express');
 const router = express.Router();
 const admin = require('firebase-admin');
 const { getPool } = require('../config/database');
-const jwt = require('jsonwebtoken');
-
-// Middleware для проверки авторизации
-const authenticateToken = (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) {
-    return res.status(401).json({ error: 'Токен доступа не предоставлен' });
-  }
-
-  jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key', (err, user) => {
-    if (err) {
-      return res.status(403).json({ error: 'Недействительный токен' });
-    }
-    req.user = user;
-    next();
-  });
-};
+const { authenticateToken } = require('../middleware/auth');
 
 // Инициализация Firebase Admin SDK
 let firebaseInitialized = false;
@@ -70,6 +52,26 @@ router.get('/', authenticateToken, async (req, res) => {
   }
 });
 
+// Получить обычные уведомления пользователя
+router.get('/user', authenticateToken, async (req, res) => {
+  try {
+    const db = getPool();
+    const result = await db.query(
+      `SELECT n.*, u.username as sender_name 
+       FROM notifications n 
+       LEFT JOIN users u ON n.sender_id = u.id 
+       WHERE n.recipient_id = $1 
+       ORDER BY n.created_at DESC 
+       LIMIT 50`,
+      [req.user.userId]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching user notifications:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Получить количество непрочитанных push-уведомлений
 router.get('/unread-count', authenticateToken, async (req, res) => {
   try {
@@ -80,6 +82,21 @@ router.get('/unread-count', authenticateToken, async (req, res) => {
     res.json({ count: parseInt(result.rows[0].count) });
   } catch (error) {
     console.error('Error fetching unread count:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Получить количество непрочитанных обычных уведомлений пользователя
+router.get('/user/unread-count', authenticateToken, async (req, res) => {
+  try {
+    const db = getPool();
+    const result = await db.query(
+      'SELECT COUNT(*) as count FROM notifications WHERE recipient_id = $1 AND is_read = false',
+      [req.user.userId]
+    );
+    res.json({ count: parseInt(result.rows[0].count) });
+  } catch (error) {
+    console.error('Error fetching user unread count:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -170,7 +187,29 @@ router.post('/send', authenticateToken, async (req, res) => {
   }
 });
 
-// Удалить уведомление
+// Отметить уведомление как прочитанное
+router.put('/user/:id/read', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const db = getPool();
+    const result = await db.query(
+      'UPDATE notifications SET is_read = true WHERE id = $1 AND recipient_id = $2 RETURNING *',
+      [id, req.user.userId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Notification not found' });
+    }
+
+    res.json({ success: true, message: 'Notification marked as read' });
+  } catch (error) {
+    console.error('Error marking notification as read:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Удалить push-уведомление
 router.delete('/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
 
@@ -185,6 +224,74 @@ router.delete('/:id', authenticateToken, async (req, res) => {
     res.json({ success: true, message: 'Notification deleted successfully' });
   } catch (error) {
     console.error('Error deleting notification:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Удалить обычное уведомление пользователя
+router.delete('/user/:id', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const db = getPool();
+    const result = await db.query(
+      'DELETE FROM notifications WHERE id = $1 AND recipient_id = $2 RETURNING *',
+      [id, req.user.userId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Notification not found' });
+    }
+
+    res.json({ success: true, message: 'Notification deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting user notification:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Отправить уведомление всем пользователям (для настроек)
+router.post('/send-all', authenticateToken, async (req, res) => {
+  const { title, message } = req.body;
+
+  if (!title || !message) {
+    return res.status(400).json({ error: 'Title and message are required' });
+  }
+
+  try {
+    const db = getPool();
+    
+    // Получаем всех активных пользователей
+    const usersResult = await db.query('SELECT id FROM users WHERE is_active = true');
+    const userIds = usersResult.rows.map(row => row.id);
+    
+    if (userIds.length === 0) {
+      return res.status(400).json({ error: 'No active users found' });
+    }
+
+    // Создаем уведомления для всех пользователей
+    const notifications = userIds.map(userId => ({
+      title,
+      message,
+      recipient_id: userId,
+      sender_id: req.user.userId
+    }));
+
+    // Вставляем уведомления в базу данных
+    for (const notification of notifications) {
+      await db.query(
+        'INSERT INTO notifications (title, message, recipient_id, sender_id) VALUES ($1, $2, $3, $4)',
+        [notification.title, notification.message, notification.recipient_id, notification.sender_id]
+      );
+    }
+
+    res.json({ 
+      success: true, 
+      message: `Уведомление отправлено ${userIds.length} пользователям`,
+      count: userIds.length
+    });
+  } catch (error) {
+    console.error('Error sending notifications to all users:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
