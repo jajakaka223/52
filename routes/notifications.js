@@ -3,6 +3,7 @@ const router = express.Router();
 const admin = require('firebase-admin');
 const { getPool } = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
+const MockFirebaseService = require('../mock-firebase-service');
 
 // Инициализация Firebase Admin SDK
 let firebaseInitialized = false;
@@ -15,18 +16,31 @@ console.log('FIREBASE_CLIENT_EMAIL:', process.env.FIREBASE_CLIENT_EMAIL ? 'SET' 
 
 if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_PRIVATE_KEY && process.env.FIREBASE_CLIENT_EMAIL) {
   try {
+    // Очищаем private key от лишних символов
+    const cleanPrivateKey = process.env.FIREBASE_PRIVATE_KEY
+      .replace(/\\n/g, '\n')
+      .replace(/"/g, '')
+      .trim();
+
     const serviceAccount = {
       type: "service_account",
       project_id: process.env.FIREBASE_PROJECT_ID,
-      private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID,
-      private_key: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+      private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID || "9c169f564554dc5cb3d09824352d6fbbfccbbc79",
+      private_key: cleanPrivateKey,
       client_email: process.env.FIREBASE_CLIENT_EMAIL,
-      client_id: process.env.FIREBASE_CLIENT_ID,
+      client_id: process.env.FIREBASE_CLIENT_ID || "110277995978391402330",
       auth_uri: "https://accounts.google.com/o/oauth2/auth",
       token_uri: "https://oauth2.googleapis.com/token",
       auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
-      client_x509_cert_url: `https://www.googleapis.com/robot/v1/metadata/x509/${process.env.FIREBASE_CLIENT_EMAIL}`
+      client_x509_cert_url: `https://www.googleapis.com/robot/v1/metadata/x509/${encodeURIComponent(process.env.FIREBASE_CLIENT_EMAIL)}`
     };
+
+    console.log('Service Account Config:', {
+      project_id: serviceAccount.project_id,
+      client_email: serviceAccount.client_email,
+      private_key_length: serviceAccount.private_key.length,
+      private_key_starts_with: serviceAccount.private_key.substring(0, 50) + '...'
+    });
 
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
@@ -201,17 +215,18 @@ router.post('/send', authenticateToken, async (req, res) => {
               tokens: tokens
             };
 
-            const response = await admin.messaging().sendMulticast(message);
-            console.log(`Push notification sent to ${response.successCount} devices`);
-            pushCount = response.successCount;
-            
-            // Обновляем статус уведомления
-            await db.query('UPDATE notifications_push SET status = $1, sent_at = NOW() WHERE id = $2', 
-              ['sent', notification.id]);
-            
-            if (response.failureCount > 0) {
-              console.log(`Failed to send to ${response.failureCount} devices`);
-              // Удаляем недействительные токены
+            try {
+              const response = await admin.messaging().sendMulticast(message);
+              console.log(`Push notification sent to ${response.successCount} devices`);
+              pushCount = response.successCount;
+              
+              // Обновляем статус уведомления
+              await db.query('UPDATE notifications_push SET status = $1, sent_at = NOW() WHERE id = $2', 
+                ['sent', notification.id]);
+              
+              if (response.failureCount > 0) {
+                console.log(`Failed to send to ${response.failureCount} devices`);
+                // Удаляем недействительные токены
               const invalidTokens = [];
               response.responses.forEach((resp, idx) => {
                 if (!resp.success && resp.error) {
