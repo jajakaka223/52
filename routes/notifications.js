@@ -210,17 +210,31 @@ router.post('/send', authenticateToken, async (req, res) => {
 
     if (type === 'push' || type === 'all' || type === 'push_user') {
       // Отправляем push уведомления
-      let targetUserId = null;
+      let targetUserIds = [];
+      
       if (type === 'push_user' && recipientId) {
-        targetUserId = recipientId;
+        // Конкретному пользователю
+        targetUserIds = [recipientId];
+      } else {
+        // Всем пользователям - получаем список всех пользователей
+        const usersResult = await db.query('SELECT id FROM users');
+        targetUserIds = usersResult.rows.map(row => row.id);
       }
       
-      const pushResult = await db.query(
-        'INSERT INTO notifications_push (title, body, recipient_id, created_at, status) VALUES ($1, $2, $3, NOW(), $4) RETURNING *',
-        [title, body, targetUserId, 'pending']
-      );
-
-      const notification = pushResult.rows[0];
+      console.log(`📝 Creating push notifications for ${targetUserIds.length} users:`, targetUserIds);
+      
+      // Создаем отдельную запись для каждого пользователя
+      const notifications = [];
+      for (const userId of targetUserIds) {
+        const pushResult = await db.query(
+          'INSERT INTO notifications_push (title, body, recipient_id, created_at, status) VALUES ($1, $2, $3, NOW(), $4) RETURNING *',
+          [title, body, userId, 'pending']
+        );
+        notifications.push(pushResult.rows[0]);
+      }
+      
+      console.log(`✅ Created ${notifications.length} push notification records`);
+      const notification = notifications[0]; // Используем первую для отправки через Firebase
 
       // Отправляем push-уведомление если Firebase инициализирован
       if (firebaseInitialized) {
@@ -317,9 +331,10 @@ router.post('/send', authenticateToken, async (req, res) => {
               console.log(`Push notification sent to ${response.successCount} devices`);
               pushCount = response.successCount;
               
-              // Обновляем статус уведомления
-              await db.query('UPDATE notifications_push SET status = $1, sent_at = NOW() WHERE id = $2', 
-                ['sent', notification.id]);
+              // Обновляем статус всех созданных уведомлений
+              const notificationIds = notifications.map(n => n.id);
+              await db.query('UPDATE notifications_push SET status = $1, sent_at = NOW() WHERE id = ANY($2)', 
+                ['sent', notificationIds]);
               
               if (response.failureCount > 0) {
                 console.log(`Failed to send to ${response.failureCount} devices`);
@@ -343,24 +358,28 @@ router.post('/send', authenticateToken, async (req, res) => {
               console.error('Firebase send error:', firebaseSendError.message);
               // Если Firebase не работает, помечаем как отправленное (для отображения в UI)
               pushCount = tokens.length;
-              await db.query('UPDATE notifications_push SET status = $1, sent_at = NOW() WHERE id = $2', 
-                ['sent', notification.id]);
-              console.log(`Marked push notification as sent (${tokens.length} devices) despite Firebase error`);
+              const notificationIds = notifications.map(n => n.id);
+              await db.query('UPDATE notifications_push SET status = $1, sent_at = NOW() WHERE id = ANY($2)', 
+                ['sent', notificationIds]);
+              console.log(`Marked push notifications as sent (${tokens.length} devices) despite Firebase error`);
             }
           } else {
             console.log('No FCM tokens found in database');
-            await db.query('UPDATE notifications_push SET status = $1 WHERE id = $2', 
-              ['failed', notification.id]);
+            const notificationIds = notifications.map(n => n.id);
+            await db.query('UPDATE notifications_push SET status = $1 WHERE id = ANY($2)', 
+              ['failed', notificationIds]);
           }
         } catch (firebaseError) {
           console.error('Firebase error:', firebaseError);
-          await db.query('UPDATE notifications_push SET status = $1 WHERE id = $2', 
-            ['failed', notification.id]);
+          const notificationIds = notifications.map(n => n.id);
+          await db.query('UPDATE notifications_push SET status = $1 WHERE id = ANY($2)', 
+            ['failed', notificationIds]);
         }
       } else {
         console.log('Firebase not initialized, push notification not sent');
-        await db.query('UPDATE notifications_push SET status = $1 WHERE id = $2', 
-          ['failed', notification.id]);
+        const notificationIds = notifications.map(n => n.id);
+        await db.query('UPDATE notifications_push SET status = $1 WHERE id = ANY($2)', 
+          ['failed', notificationIds]);
       }
     }
 
