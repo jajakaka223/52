@@ -409,4 +409,7 @@ const createDefaultAdmin = async (client) => {
   }
 };
 
-module.exports = { pool, connectDB };
+// Функция для получения пула соединений
+const getPool = () => pool;
+
+module.exports = { pool, connectDB, getPool };

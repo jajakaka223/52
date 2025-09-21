@@ -51,6 +51,20 @@ router.get('/', async (req, res) => {
   }
 });
 
+// Получить количество непрочитанных уведомлений
+router.get('/unread-count', async (req, res) => {
+  try {
+    const db = getPool();
+    const result = await db.query(
+      'SELECT COUNT(*) as count FROM notifications WHERE created_at > NOW() - INTERVAL \'7 days\''
+    );
+    res.json({ count: parseInt(result.rows[0].count) });
+  } catch (error) {
+    console.error('Error fetching unread count:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Отправить push-уведомление
 router.post('/send', async (req, res) => {
   const { title, body } = req.body;
