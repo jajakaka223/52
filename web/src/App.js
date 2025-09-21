@@ -4,7 +4,7 @@ import ruRU from 'antd/es/locale/ru_RU';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ru';
 import api from './config/http';
-import { UserOutlined, LogoutOutlined, DashboardOutlined, CarOutlined, FileTextOutlined, BarChartOutlined, SettingOutlined, BulbOutlined, DollarOutlined, ToolOutlined, EnvironmentOutlined, CreditCardOutlined } from '@ant-design/icons';
+import { UserOutlined, LogoutOutlined, DashboardOutlined, CarOutlined, FileTextOutlined, BarChartOutlined, SettingOutlined, BulbOutlined, DollarOutlined, ToolOutlined, EnvironmentOutlined, CreditCardOutlined, NotificationOutlined } from '@ant-design/icons';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import Orders from './components/Orders';
