@@ -1,230 +1,218 @@
 const express = require('express');
-const { pool } = require('../config/database');
-const { authenticateToken, requireAdmin, logRequest, checkUserActive } = require('../middleware/auth');
-const { logUserAction, logError } = require('../utils/logger');
-
 const router = express.Router();
+const { requireAuth, requireRole } = require('../middleware/auth');
+const { pool } = require('../config/database');
+const admin = require('firebase-admin');
 
-// Применяем middleware ко всем роутам
-router.use(authenticateToken);
-router.use(checkUserActive);
-router.use(logRequest);
-
-// Получить уведомления пользователя
-router.get('/', async (req, res) => {
+// Инициализация Firebase Admin SDK (если еще не инициализирован)
+if (!admin.apps.length) {
   try {
-    const result = await pool.query(`
-      SELECT n.*, 
-             s.username as sender_username, 
-             s.full_name as sender_name
-      FROM notifications n
-      LEFT JOIN users s ON n.sender_id = s.id
-      WHERE n.recipient_id = $1
-      ORDER BY n.created_at DESC
-    `, [req.user.userId]);
+    const serviceAccount = require('../path/to/serviceAccountKey.json'); // Путь к ключу сервиса
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+    });
+  } catch (error) {
+    console.warn('Firebase Admin SDK not initialized:', error.message);
+  }
+}
 
+// Получение всех уведомлений
+router.get('/', requireAuth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM notifications ORDER BY created_at DESC LIMIT 50'
+    );
+    
     res.json({
       success: true,
       notifications: result.rows
     });
   } catch (error) {
-    logError(error, { route: '/notifications', user: req.user });
-    res.status(500).json({ error: 'Ошибка сервера при получении уведомлений' });
-  }
-});
-
-// Получить количество непрочитанных уведомлений
-router.get('/unread-count', async (req, res) => {
-  try {
-    const result = await pool.query(`
-      SELECT COUNT(*) as count
-      FROM notifications
-      WHERE recipient_id = $1 AND is_read = false
-    `, [req.user.userId]);
-
-    res.json({
-      success: true,
-      count: parseInt(result.rows[0].count)
+    console.error('Error fetching notifications:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Ошибка при получении уведомлений' 
     });
-  } catch (error) {
-    logError(error, { route: '/notifications/unread-count', user: req.user });
-    res.status(500).json({ error: 'Ошибка сервера при получении количества уведомлений' });
   }
 });
 
-// Отметить уведомление как прочитанное
-router.patch('/:id/read', async (req, res) => {
+// Создание нового уведомления
+router.post('/', requireAuth, requireRole(['admin']), async (req, res) => {
   try {
-    const { id } = req.params;
-    
-    const result = await pool.query(`
-      UPDATE notifications 
-      SET is_read = true, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $1 AND recipient_id = $2
-      RETURNING *
-    `, [id, req.user.userId]);
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Уведомление не найдено' });
-    }
-
-    res.json({
-      success: true,
-      message: 'Уведомление отмечено как прочитанное'
-    });
-  } catch (error) {
-    logError(error, { route: `/notifications/${req.params.id}/read`, user: req.user });
-    res.status(500).json({ error: 'Ошибка сервера при обновлении уведомления' });
-  }
-});
-
-// Отметить все уведомления как прочитанные
-router.patch('/mark-all-read', async (req, res) => {
-  try {
-    await pool.query(`
-      UPDATE notifications 
-      SET is_read = true, updated_at = CURRENT_TIMESTAMP
-      WHERE recipient_id = $1 AND is_read = false
-    `, [req.user.userId]);
-
-    res.json({
-      success: true,
-      message: 'Все уведомления отмечены как прочитанные'
-    });
-  } catch (error) {
-    logError(error, { route: '/notifications/mark-all-read', user: req.user });
-    res.status(500).json({ error: 'Ошибка сервера при обновлении уведомлений' });
-  }
-});
-
-// Удалить уведомление
-router.delete('/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    const result = await pool.query(`
-      DELETE FROM notifications 
-      WHERE id = $1 AND recipient_id = $2
-      RETURNING *
-    `, [id, req.user.userId]);
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Уведомление не найдено' });
-    }
-
-    res.json({
-      success: true,
-      message: 'Уведомление удалено'
-    });
-  } catch (error) {
-    logError(error, { route: `/notifications/${req.params.id}`, user: req.user });
-    res.status(500).json({ error: 'Ошибка сервера при удалении уведомления' });
-  }
-});
-
-// Отправить уведомление (только для администраторов)
-router.post('/send', requireAdmin, async (req, res) => {
-  try {
-    const { title, message, recipientId } = req.body;
-
-    if (!title || !message || !recipientId) {
-      return res.status(400).json({ 
-        error: 'Обязательные поля: title, message, recipientId' 
-      });
-    }
-
-    // Проверяем, что получатель существует
-    const recipient = await pool.query(
-      'SELECT id, username FROM users WHERE id = $1',
-      [recipientId]
-    );
-
-    if (recipient.rows.length === 0) {
-      return res.status(404).json({ error: 'Получатель не найден' });
-    }
-
-    // Создаем уведомление
-    const result = await pool.query(`
-      INSERT INTO notifications (title, message, recipient_id, sender_id)
-      VALUES ($1, $2, $3, $4)
-      RETURNING *
-    `, [title, message, recipientId, req.user.userId]);
-
-    // Логируем отправку уведомления
-    logUserAction(req.user.userId, 'notification_sent', {
-      recipientId,
-      recipientUsername: recipient.rows[0].username,
-      title
-    }, req.ip);
-
-    res.status(201).json({
-      success: true,
-      message: 'Уведомление отправлено',
-      notification: result.rows[0]
-    });
-  } catch (error) {
-    logError(error, { route: '/notifications/send', body: req.body, user: req.user });
-    res.status(500).json({ error: 'Ошибка сервера при отправке уведомления' });
-  }
-});
-
-// Отправить уведомление всем пользователям (только для администраторов)
-router.post('/send-all', requireAdmin, async (req, res) => {
-  try {
-    const { title, message } = req.body;
+    const { title, message, targetUsers = 'all' } = req.body;
 
     if (!title || !message) {
-      return res.status(400).json({ 
-        error: 'Обязательные поля: title, message' 
+      return res.status(400).json({
+        success: false,
+        error: 'Заголовок и сообщение обязательны'
       });
     }
 
-    // Получаем всех активных пользователей
-    const users = await pool.query(
-      'SELECT id FROM users WHERE is_active = true'
+    // Сохраняем уведомление в базу данных
+    const result = await pool.query(
+      'INSERT INTO notifications (title, message, target_users, created_by) VALUES ($1, $2, $3, $4) RETURNING *',
+      [title, message, targetUsers, req.user.userId]
     );
 
-    if (users.rows.length === 0) {
-      return res.status(400).json({ error: 'Нет активных пользователей для отправки' });
+    const notification = result.rows[0];
+
+    // Отправляем push-уведомление
+    try {
+      await sendPushNotification(title, message, targetUsers);
+      
+      // Обновляем статус уведомления
+      await pool.query(
+        'UPDATE notifications SET status = $1 WHERE id = $2',
+        ['sent', notification.id]
+      );
+    } catch (pushError) {
+      console.error('Push notification failed:', pushError);
+      
+      // Обновляем статус уведомления как неудачное
+      await pool.query(
+        'UPDATE notifications SET status = $1 WHERE id = $2',
+        ['failed', notification.id]
+      );
     }
-
-    // Создаем уведомления для всех пользователей
-    const notifications = users.rows.map(user => ({
-      title,
-      message,
-      recipient_id: user.id,
-      sender_id: req.user.userId
-    }));
-
-    // Вставляем все уведомления одним запросом
-    const values = notifications.map((_, index) => {
-      const offset = index * 4;
-      return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4})`;
-    }).join(', ');
-
-    const params = notifications.flatMap(n => [n.title, n.message, n.recipient_id, n.sender_id]);
-
-    await pool.query(`
-      INSERT INTO notifications (title, message, recipient_id, sender_id)
-      VALUES ${values}
-    `, params);
-
-    // Логируем массовую отправку
-    logUserAction(req.user.userId, 'notification_sent_all', {
-      title,
-      recipientCount: users.rows.length
-    }, req.ip);
 
     res.json({
       success: true,
-      message: `Уведомление отправлено ${users.rows.length} пользователям`,
-      recipientCount: users.rows.length
+      notification: notification,
+      message: 'Уведомление создано и отправлено'
     });
+
   } catch (error) {
-    logError(error, { route: '/notifications/send-all', body: req.body, user: req.user });
-    res.status(500).json({ error: 'Ошибка сервера при массовой отправке уведомлений' });
+    console.error('Error creating notification:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Ошибка при создании уведомления' 
+    });
+  }
+});
+
+// Отправка push-уведомления
+async function sendPushNotification(title, message, targetUsers) {
+  if (!admin.apps.length) {
+    throw new Error('Firebase Admin SDK not initialized');
+  }
+
+  try {
+    // Получаем FCM токены пользователей
+    let query = 'SELECT fcm_token FROM fcm_tokens WHERE fcm_token IS NOT NULL';
+    let params = [];
+
+    if (targetUsers !== 'all') {
+      // Если указаны конкретные пользователи
+      const userIds = Array.isArray(targetUsers) ? targetUsers : [targetUsers];
+      query += ' AND user_id = ANY($1)';
+      params = [userIds];
+    }
+
+    const result = await pool.query(query, params);
+    const tokens = result.rows.map(row => row.fcm_token).filter(token => token);
+
+    if (tokens.length === 0) {
+      console.log('No FCM tokens found for notification');
+      return;
+    }
+
+    // Создаем сообщение
+    const notification = {
+      title: title,
+      body: message,
+      data: {
+        type: 'notification',
+        timestamp: Date.now().toString()
+      }
+    };
+
+    // Отправляем уведомление
+    const response = await admin.messaging().sendMulticast({
+      tokens: tokens,
+      notification: notification,
+      android: {
+        notification: {
+          icon: 'ic_notification',
+          color: '#2196F3',
+          sound: 'default',
+          priority: 'high'
+        }
+      },
+      apns: {
+        payload: {
+          aps: {
+            sound: 'default',
+            badge: 1
+          }
+        }
+      }
+    });
+
+    console.log(`Push notification sent to ${response.successCount} devices`);
+    
+    if (response.failureCount > 0) {
+      console.log(`Failed to send to ${response.failureCount} devices`);
+      
+      // Удаляем недействительные токены
+      const invalidTokens = [];
+      response.responses.forEach((resp, idx) => {
+        if (!resp.success && resp.error) {
+          const errorCode = resp.error.code;
+          if (errorCode === 'messaging/invalid-registration-token' || 
+              errorCode === 'messaging/registration-token-not-registered') {
+            invalidTokens.push(tokens[idx]);
+          }
+        }
+      });
+
+      if (invalidTokens.length > 0) {
+        await pool.query(
+          'DELETE FROM fcm_tokens WHERE fcm_token = ANY($1)',
+          [invalidTokens]
+        );
+        console.log(`Removed ${invalidTokens.length} invalid FCM tokens`);
+      }
+    }
+
+  } catch (error) {
+    console.error('Error sending push notification:', error);
+    throw error;
+  }
+}
+
+// Получение статистики уведомлений
+router.get('/stats', requireAuth, requireRole(['admin']), async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        COUNT(*) as total,
+        COUNT(CASE WHEN status = 'sent' THEN 1 END) as sent,
+        COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed,
+        COUNT(CASE WHEN created_at >= NOW() - INTERVAL '24 hours' THEN 1 END) as last_24h
+      FROM notifications
+    `);
+
+    const fcmResult = await pool.query(`
+      SELECT COUNT(*) as total_tokens
+      FROM fcm_tokens 
+      WHERE fcm_token IS NOT NULL
+    `);
+
+    res.json({
+      success: true,
+      stats: {
+        ...result.rows[0],
+        total_tokens: parseInt(fcmResult.rows[0].total_tokens)
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching notification stats:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Ошибка при получении статистики' 
+    });
   }
 });
 
 module.exports = router;
-

@@ -4,7 +4,7 @@ import ruRU from 'antd/es/locale/ru_RU';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ru';
 import api from './config/http';
-import { UserOutlined, LogoutOutlined, DashboardOutlined, CarOutlined, FileTextOutlined, BarChartOutlined, SettingOutlined, BulbOutlined, DollarOutlined, ToolOutlined, EnvironmentOutlined, CreditCardOutlined } from '@ant-design/icons';
+import { UserOutlined, LogoutOutlined, DashboardOutlined, CarOutlined, FileTextOutlined, BarChartOutlined, SettingOutlined, BulbOutlined, DollarOutlined, ToolOutlined, EnvironmentOutlined, CreditCardOutlined, BellOutlined } from '@ant-design/icons';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import Orders from './components/Orders';
@@ -18,6 +18,7 @@ import Budget from './components/Budget';
 import Salary from './components/Salary';
 import NotificationBell from './components/NotificationBell';
 import Notifications from './components/Notifications';
+import NotificationsPage from './components/NotificationsPage';
 
 const { Header, Sider, Content } = Layout;
 
@@ -237,6 +238,8 @@ function App() {
         return <Reports user={user} theme={theme} userPermissions={userPermissions} />;
       case 'settings':
         return <Settings user={user} userPermissions={userPermissions} />;
+      case 'notifications':
+        return <NotificationsPage user={user} userPermissions={userPermissions} />;
       default:
         return <Dashboard user={user} theme={theme} userPermissions={userPermissions} />;
     }
@@ -332,6 +335,11 @@ function App() {
           {userPermissions?.can_view_menu_reports && (
             <Menu.Item key="reports" icon={<BarChartOutlined />}>
               Отчеты
+            </Menu.Item>
+          )}
+          {userPermissions?.can_send_notifications && (
+            <Menu.Item key="notifications" icon={<BellOutlined />}>
+              Уведомления
             </Menu.Item>
           )}
           {userPermissions?.can_view_settings && (
