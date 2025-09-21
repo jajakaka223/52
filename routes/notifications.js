@@ -43,7 +43,8 @@ if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_PRIVATE_KEY && proce
 
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
-      projectId: process.env.FIREBASE_PROJECT_ID
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      databaseURL: `https://${process.env.FIREBASE_PROJECT_ID}-default-rtdb.firebaseio.com/`
     });
 
     firebaseInitialized = true;
@@ -217,7 +218,40 @@ router.post('/send', authenticateToken, async (req, res) => {
                 tokens: tokens
               };
 
-              const response = await admin.messaging().sendMulticast(message);
+              // Попробуем отправить по одному уведомлению
+              let successCount = 0;
+              let failureCount = 0;
+              
+              for (const token of tokens) {
+                try {
+                  const singleMessage = {
+                    notification: {
+                      title: title,
+                      body: body
+                    },
+                    data: {
+                      notificationId: notification.id.toString(),
+                      timestamp: new Date().toISOString()
+                    },
+                    token: token
+                  };
+                  
+                  await admin.messaging().send(singleMessage);
+                  successCount++;
+                } catch (error) {
+                  console.error(`Failed to send to token ${token.substring(0, 20)}...:`, error.message);
+                  failureCount++;
+                }
+              }
+              
+              const response = {
+                successCount,
+                failureCount,
+                responses: tokens.map((token, idx) => ({
+                  success: idx < successCount,
+                  error: idx >= successCount ? { code: 'messaging/unknown-error' } : null
+                }))
+              };
               console.log(`Push notification sent to ${response.successCount} devices`);
               pushCount = response.successCount;
               
