@@ -44,7 +44,8 @@
     "react-native-vector-icons": "^10.3.0",
     "socket.io": "^4.7.2",
     "socket.io-client": "^4.8.1",
-    "winston": "^3.10.0"
+    "winston": "^3.10.0",
+    "firebase-admin": "^12.0.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"

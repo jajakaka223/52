@@ -18,6 +18,7 @@ import Budget from './components/Budget';
 import Salary from './components/Salary';
 import NotificationBell from './components/NotificationBell';
 import Notifications from './components/Notifications';
+import NotificationsPage from './components/NotificationsPage';
 
 const { Header, Sider, Content } = Layout;
 
@@ -237,6 +238,8 @@ function App() {
         return <Reports user={user} theme={theme} userPermissions={userPermissions} />;
       case 'settings':
         return <Settings user={user} userPermissions={userPermissions} />;
+      case 'notifications':
+        return <NotificationsPage />;
       default:
         return <Dashboard user={user} theme={theme} userPermissions={userPermissions} />;
     }
@@ -337,6 +340,11 @@ function App() {
           {userPermissions?.can_view_settings && (
             <Menu.Item key="settings" icon={<SettingOutlined />}>
               Настройки
+            </Menu.Item>
+          )}
+          {userPermissions?.can_send_notifications && (
+            <Menu.Item key="notifications" icon={<NotificationOutlined />}>
+              Уведомления
             </Menu.Item>
           )}
         </Menu>
