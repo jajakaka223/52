@@ -293,13 +293,6 @@ const Settings = ({ user, userPermissions }) => {
         </Form>
       </Card>
 
-      {userPermissions?.can_send_notifications && (
-        <Card title="Отправка уведомлений" style={{ marginBottom: 16 }}>
-          <Button type="primary" onClick={() => setNotificationModalOpen(true)}>
-            Отправить уведомление
-          </Button>
-        </Card>
-      )}
 
       <Card title="Управление ролями" style={{ marginBottom: 16 }}>
         <Form layout="inline" onFinish={async (vals) => {
