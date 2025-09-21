@@ -258,7 +258,7 @@ router.post('/:id/assign-driver', requireAdmin, async (req, res) => {
 
     // Отправляем push уведомление водителю о назначенной заявке
     try {
-      const notificationResponse = await fetch(`${process.env.RAILWAY_PUBLIC_DOMAIN || 'http://localhost:8080'}/api/notifications/send`, {
+      const notificationResponse = await fetch(`https://web-production-7cfec.up.railway.app/api/notifications/send`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
