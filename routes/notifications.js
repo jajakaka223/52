@@ -3,7 +3,6 @@ const router = express.Router();
 const admin = require('firebase-admin');
 const { getPool } = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
-const MockFirebaseService = require('../mock-firebase-service');
 
 // Инициализация Firebase Admin SDK
 let firebaseInitialized = false;
