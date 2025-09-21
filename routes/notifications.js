@@ -8,6 +8,11 @@ const { authenticateToken } = require('../middleware/auth');
 let firebaseInitialized = false;
 
 // Инициализация Firebase только если есть необходимые переменные окружения
+console.log('Checking Firebase environment variables:');
+console.log('FIREBASE_PROJECT_ID:', process.env.FIREBASE_PROJECT_ID ? 'SET' : 'NOT SET');
+console.log('FIREBASE_PRIVATE_KEY:', process.env.FIREBASE_PRIVATE_KEY ? 'SET' : 'NOT SET');
+console.log('FIREBASE_CLIENT_EMAIL:', process.env.FIREBASE_CLIENT_EMAIL ? 'SET' : 'NOT SET');
+
 if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_PRIVATE_KEY && process.env.FIREBASE_CLIENT_EMAIL) {
   try {
     const serviceAccount = {
@@ -36,6 +41,12 @@ if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_PRIVATE_KEY && proce
   }
 } else {
   console.log('Firebase environment variables not found, push notifications disabled');
+  console.log('To enable push notifications, set these environment variables:');
+  console.log('- FIREBASE_PROJECT_ID');
+  console.log('- FIREBASE_PRIVATE_KEY');
+  console.log('- FIREBASE_CLIENT_EMAIL');
+  console.log('- FIREBASE_PRIVATE_KEY_ID (optional)');
+  console.log('- FIREBASE_CLIENT_ID (optional)');
 }
 
 // Получить все push-уведомления
@@ -395,6 +406,7 @@ router.post('/register-token', async (req, res) => {
       [token, userId]
     );
 
+    console.log(`FCM token registered for user ${userId}: ${token.substring(0, 20)}...`);
     res.json({ success: true, message: 'FCM token registered successfully' });
   } catch (error) {
     console.error('Error registering FCM token:', error);

@@ -15,7 +15,7 @@ const NotificationBell = ({ isDark, onClick }) => {
 
   const fetchUnreadCount = useCallback(async () => {
     try {
-      const res = await api.get('/api/notifications/unread-count', { headers });
+      const res = await api.get('/api/notifications/user/unread-count', { headers });
       setUnreadCount(res.data?.count || 0);
     } catch (e) {
       // Тихо игнорируем ошибки
