@@ -20,7 +20,11 @@ const NotificationsPage = () => {
   const fetchNotifications = async () => {
     try {
       setLoadingList(true);
-      const response = await fetch('/api/notifications');
+      const response = await fetch('https://web-production-7cfec.up.railway.app/api/notifications', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+        }
+      });
       if (response.ok) {
         const data = await response.json();
         setNotifications(data);
@@ -40,10 +44,11 @@ const NotificationsPage = () => {
 
     try {
       setLoading(true);
-      const response = await fetch('/api/notifications/send', {
+      const response = await fetch('https://web-production-7cfec.up.railway.app/api/notifications/send', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
         },
         body: JSON.stringify({
           title: title.trim(),
@@ -70,8 +75,11 @@ const NotificationsPage = () => {
 
   const deleteNotification = async (id) => {
     try {
-      const response = await fetch(`/api/notifications/${id}`, {
+      const response = await fetch(`https://web-production-7cfec.up.railway.app/api/notifications/${id}`, {
         method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+        }
       });
 
       if (response.ok) {

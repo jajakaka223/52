@@ -2,6 +2,25 @@ const express = require('express');
 const router = express.Router();
 const admin = require('firebase-admin');
 const { getPool } = require('../config/database');
+const jwt = require('jsonwebtoken');
+
+// Middleware для проверки авторизации
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) {
+    return res.status(401).json({ error: 'Токен доступа не предоставлен' });
+  }
+
+  jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key', (err, user) => {
+    if (err) {
+      return res.status(403).json({ error: 'Недействительный токен' });
+    }
+    req.user = user;
+    next();
+  });
+};
 
 // Инициализация Firebase Admin SDK
 let firebaseInitialized = false;
@@ -38,7 +57,7 @@ if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_PRIVATE_KEY && proce
 }
 
 // Получить все уведомления
-router.get('/', async (req, res) => {
+router.get('/', authenticateToken, async (req, res) => {
   try {
     const db = getPool();
     const result = await db.query(
@@ -52,7 +71,7 @@ router.get('/', async (req, res) => {
 });
 
 // Получить количество непрочитанных уведомлений
-router.get('/unread-count', async (req, res) => {
+router.get('/unread-count', authenticateToken, async (req, res) => {
   try {
     const db = getPool();
     const result = await db.query(
@@ -66,7 +85,7 @@ router.get('/unread-count', async (req, res) => {
 });
 
 // Отправить push-уведомление
-router.post('/send', async (req, res) => {
+router.post('/send', authenticateToken, async (req, res) => {
   const { title, body } = req.body;
 
   if (!title || !body) {
@@ -148,7 +167,7 @@ router.post('/send', async (req, res) => {
 });
 
 // Удалить уведомление
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
 
   try {
