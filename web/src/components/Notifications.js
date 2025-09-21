@@ -1,198 +1,335 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Drawer, List, Button, Typography, Space, Tag, Popconfirm } from 'antd';
-import { DeleteOutlined, EyeOutlined } from '@ant-design/icons';
-import api from '../config/http';
+import React, { useState, useEffect } from 'react';
+import { 
+  Container, 
+  Typography, 
+  TextField, 
+  Button, 
+  Card, 
+  CardContent, 
+  Grid, 
+  Box, 
+  Alert,
+  CircularProgress,
+  Chip,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  IconButton,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions
+} from '@mui/material';
+import { Send, History, Refresh } from '@mui/icons-material';
+import { api } from '../config/api';
 
-const { Title, Text } = Typography;
-
-function useAuthHeaders() {
-  return useMemo(() => ({
-    Authorization: `Bearer ${localStorage.getItem('auth_token')}`
-  }), []);
-}
-
-const Notifications = ({ isDark, open, onClose }) => {
-  const headers = useAuthHeaders();
-  const [notifications, setNotifications] = useState([]);
+const Notifications = () => {
+  const [title, setTitle] = useState('');
+  const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
-
-  const fetchNotifications = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await api.get('/api/notifications', { headers });
-      const data = res.data?.notifications || [];
-      setNotifications(data);
-      setUnreadCount(data.filter(n => !n.is_read).length);
-    } catch (e) {
-      // Тихо игнорируем ошибки, чтобы не спамить сообщениями
-    } finally {
-      setLoading(false);
-    }
-  }, [headers]);
+  const [alert, setAlert] = useState({ show: false, message: '', severity: 'success' });
+  const [notifications, setNotifications] = useState([]);
+  const [stats, setStats] = useState(null);
+  const [showHistory, setShowHistory] = useState(false);
 
   useEffect(() => {
-    fetchNotifications();
-    // Обновляем уведомления каждые 30 секунд
-    const interval = setInterval(fetchNotifications, 30000);
-    return () => clearInterval(interval);
-  }, [fetchNotifications]);
+    loadNotifications();
+    loadStats();
+  }, []);
 
-  const markAsRead = async (id) => {
+  const loadNotifications = async () => {
     try {
-      await api.patch(`/api/notifications/${id}/read`, {}, { headers });
-      setNotifications(prev => 
-        prev.map(n => n.id === id ? { ...n, is_read: true } : n)
-      );
-      setUnreadCount(prev => Math.max(0, prev - 1));
-    } catch (e) {
-      // Тихо игнорируем ошибки
+      const response = await api.get('/notifications');
+      if (response.data.success) {
+        setNotifications(response.data.notifications);
+      }
+    } catch (error) {
+      console.error('Error loading notifications:', error);
     }
   };
 
-  const markAllAsRead = async () => {
+  const loadStats = async () => {
     try {
-      await api.patch('/api/notifications/mark-all-read', {}, { headers });
-      setNotifications(prev => 
-        prev.map(n => ({ ...n, is_read: true }))
-      );
-      setUnreadCount(0);
-    } catch (e) {
-      // Тихо игнорируем ошибки
+      const response = await api.get('/notifications/stats');
+      if (response.data.success) {
+        setStats(response.data.stats);
+      }
+    } catch (error) {
+      console.error('Error loading stats:', error);
     }
   };
 
-  const deleteNotification = async (id) => {
-    try {
-      await api.delete(`/api/notifications/${id}`, { headers });
-      setNotifications(prev => prev.filter(n => n.id !== id));
-      setUnreadCount(prev => {
-        const deleted = notifications.find(n => n.id === id);
-        return deleted && !deleted.is_read ? Math.max(0, prev - 1) : prev;
+  const sendNotification = async () => {
+    if (!title.trim() || !message.trim()) {
+      setAlert({
+        show: true,
+        message: 'Заполните все поля',
+        severity: 'error'
       });
-    } catch (e) {
-      // Тихо игнорируем ошибки
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await api.post('/notifications', {
+        title: title.trim(),
+        message: message.trim(),
+        targetUsers: 'all'
+      });
+
+      if (response.data.success) {
+        setAlert({
+          show: true,
+          message: 'Уведомление отправлено успешно',
+          severity: 'success'
+        });
+        setTitle('');
+        setMessage('');
+        loadNotifications();
+        loadStats();
+      }
+    } catch (error) {
+      console.error('Error sending notification:', error);
+      setAlert({
+        show: true,
+        message: 'Ошибка при отправке уведомления',
+        severity: 'error'
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
   const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now - date;
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
+    return new Date(dateString).toLocaleString('ru-RU');
+  };
 
-    if (diffMins < 1) return 'только что';
-    if (diffMins < 60) return `${diffMins} мин назад`;
-    if (diffHours < 24) return `${diffHours} ч назад`;
-    if (diffDays < 7) return `${diffDays} дн назад`;
-    return date.toLocaleDateString('ru-RU');
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'sent': return 'success';
+      case 'failed': return 'error';
+      case 'pending': return 'warning';
+      default: return 'default';
+    }
   };
 
   return (
-    <>
-      <Drawer
-        title={
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Title level={4} style={{ margin: 0, color: isDark ? '#fff' : '#000', whiteSpace: 'nowrap' }}>
-              Уведомления
-            </Title>
-          </div>
-        }
-        placement="right"
-        width={400}
-        open={open}
-        onClose={onClose}
-        bodyStyle={{ 
-          background: isDark ? '#1f1f1f' : '#fff',
-          padding: 0
-        }}
-        headerStyle={{ 
-          background: isDark ? '#141414' : '#fafafa',
-          borderBottom: isDark ? '1px solid #303030' : '1px solid #f0f0f0'
-        }}
-      >
-        <List
-          loading={loading}
-          dataSource={notifications}
-          locale={{ emptyText: 'Нет уведомлений' }}
-          footer={
-            unreadCount > 0 ? (
-              <div style={{ padding: '16px', textAlign: 'center', borderTop: isDark ? '1px solid #303030' : '1px solid #f0f0f0' }}>
-                <Button type="primary" onClick={markAllAsRead} style={{ width: '100%' }}>
-                  Отметить все прочитанными
+    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+      <Typography variant="h4" gutterBottom>
+        Управление уведомлениями
+      </Typography>
+
+      {alert.show && (
+        <Alert 
+          severity={alert.severity} 
+          onClose={() => setAlert({ ...alert, show: false })}
+          sx={{ mb: 3 }}
+        >
+          {alert.message}
+        </Alert>
+      )}
+
+      <Grid container spacing={3}>
+        {/* Статистика */}
+        {stats && (
+          <Grid item xs={12}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Статистика
+                </Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={3}>
+                    <Box textAlign="center">
+                      <Typography variant="h4" color="primary">
+                        {stats.total}
+                      </Typography>
+                      <Typography variant="body2" color="textSecondary">
+                        Всего уведомлений
+                      </Typography>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={3}>
+                    <Box textAlign="center">
+                      <Typography variant="h4" color="success.main">
+                        {stats.sent}
+                      </Typography>
+                      <Typography variant="body2" color="textSecondary">
+                        Отправлено
+                      </Typography>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={3}>
+                    <Box textAlign="center">
+                      <Typography variant="h4" color="error.main">
+                        {stats.failed}
+                      </Typography>
+                      <Typography variant="body2" color="textSecondary">
+                        Ошибки
+                      </Typography>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={3}>
+                    <Box textAlign="center">
+                      <Typography variant="h4" color="info.main">
+                        {stats.total_tokens}
+                      </Typography>
+                      <Typography variant="body2" color="textSecondary">
+                        Активных устройств
+                      </Typography>
+                    </Box>
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
+          </Grid>
+        )}
+
+        {/* Форма отправки */}
+        <Grid item xs={12} md={6}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Отправить уведомление
+              </Typography>
+              
+              <TextField
+                fullWidth
+                label="Заголовок уведомления"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                margin="normal"
+                inputProps={{ maxLength: 100 }}
+                helperText={`${title.length}/100 символов`}
+              />
+              
+              <TextField
+                fullWidth
+                label="Текст уведомления"
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                margin="normal"
+                multiline
+                rows={4}
+                inputProps={{ maxLength: 500 }}
+                helperText={`${message.length}/500 символов`}
+              />
+              
+              <Box sx={{ mt: 2, display: 'flex', gap: 2 }}>
+                <Button
+                  variant="contained"
+                  startIcon={loading ? <CircularProgress size={20} /> : <Send />}
+                  onClick={sendNotification}
+                  disabled={loading || !title.trim() || !message.trim()}
+                >
+                  Отправить
                 </Button>
-              </div>
-            ) : null
-          }
-          renderItem={(item) => (
-            <List.Item
-              style={{
-                background: item.is_read ? 'transparent' : (isDark ? '#0f0f0f' : '#f6f6f6'),
-                borderLeft: item.is_read ? 'none' : `3px solid #1890ff`,
-                padding: '12px 16px',
-                borderBottom: isDark ? '1px solid #303030' : '1px solid #f0f0f0'
-              }}
-            >
-              <div style={{ width: '100%' }}>
-                <div style={{ 
-                  display: 'flex', 
-                  justifyContent: 'space-between', 
-                  alignItems: 'flex-start',
-                  marginBottom: 8
-                }}>
-                  <Text strong style={{ color: isDark ? '#fff' : '#000' }}>
-                    {item.title}
-                  </Text>
-                  <Space>
-                    <Text type="secondary" style={{ fontSize: '12px' }}>
-                      {formatDate(item.created_at)}
-                    </Text>
-                    {!item.is_read && (
-                      <Tag style={{ background: '#434343', color: '#fff', border: '1px solid #434343', fontWeight: 500 }} size="small">Новое</Tag>
-                    )}
-                  </Space>
-                </div>
                 
-                <Text style={{ 
-                  color: isDark ? '#ccc' : '#666',
-                  display: 'block',
-                  marginBottom: 8,
-                  whiteSpace: 'pre-wrap'
-                }}>
-                  {item.message}
-                </Text>
-                
-                <Space>
-                  {!item.is_read && (
-                    <Button 
-                      size="small" 
-                      icon={<EyeOutlined />}
-                      onClick={() => markAsRead(item.id)}
-                    >
-                      Прочитано
-                    </Button>
-                  )}
-                  <Popconfirm
-                    title="Удалить уведомление?"
-                    onConfirm={() => deleteNotification(item.id)}
-                    okText="Удалить"
-                    cancelText="Отмена"
-                  >
-                    <Button 
-                      size="small" 
-                      danger 
-                      icon={<DeleteOutlined />}
-                    />
-                  </Popconfirm>
-                </Space>
-              </div>
-            </List.Item>
-          )}
-        />
-      </Drawer>
-    </>
+                <Button
+                  variant="outlined"
+                  startIcon={<History />}
+                  onClick={() => setShowHistory(true)}
+                >
+                  История
+                </Button>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Информация */}
+        <Grid item xs={12} md={6}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Информация
+              </Typography>
+              
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="body2" color="textSecondary">
+                  • Уведомления отправляются на все зарегистрированные устройства
+                </Typography>
+                <Typography variant="body2" color="textSecondary">
+                  • Максимальная длина заголовка: 100 символов
+                </Typography>
+                <Typography variant="body2" color="textSecondary">
+                  • Максимальная длина сообщения: 500 символов
+                </Typography>
+                <Typography variant="body2" color="textSecondary">
+                  • Уведомления доставляются мгновенно
+                </Typography>
+              </Box>
+              
+              <Alert severity="info" sx={{ mt: 2 }}>
+                Убедитесь, что у пользователей включены push-уведомления в настройках приложения.
+              </Alert>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+
+      {/* Диалог истории */}
+      <Dialog 
+        open={showHistory} 
+        onClose={() => setShowHistory(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          История уведомлений
+          <IconButton
+            onClick={loadNotifications}
+            sx={{ float: 'right' }}
+          >
+            <Refresh />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent>
+          <TableContainer component={Paper}>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Заголовок</TableCell>
+                  <TableCell>Сообщение</TableCell>
+                  <TableCell>Статус</TableCell>
+                  <TableCell>Дата</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {notifications.map((notification) => (
+                  <TableRow key={notification.id}>
+                    <TableCell>{notification.title}</TableCell>
+                    <TableCell>
+                      {notification.message.length > 50 
+                        ? `${notification.message.substring(0, 50)}...`
+                        : notification.message
+                      }
+                    </TableCell>
+                    <TableCell>
+                      <Chip 
+                        label={notification.status}
+                        color={getStatusColor(notification.status)}
+                        size="small"
+                      />
+                    </TableCell>
+                    <TableCell>{formatDate(notification.created_at)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowHistory(false)}>
+            Закрыть
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Container>
   );
 };
 

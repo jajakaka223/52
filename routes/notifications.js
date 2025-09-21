@@ -5,15 +5,30 @@ const { pool } = require('../config/database');
 const admin = require('firebase-admin');
 
 // Инициализация Firebase Admin SDK (если еще не инициализирован)
+let firebaseInitialized = false;
 if (!admin.apps.length) {
   try {
-    const serviceAccount = require('../path/to/serviceAccountKey.json'); // Путь к ключу сервиса
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount),
-    });
+    // Проверяем наличие переменных окружения для Firebase
+    if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_PRIVATE_KEY && process.env.FIREBASE_CLIENT_EMAIL) {
+      const serviceAccount = {
+        projectId: process.env.FIREBASE_PROJECT_ID,
+        privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      };
+      
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+      });
+      firebaseInitialized = true;
+      console.log('Firebase Admin SDK initialized successfully');
+    } else {
+      console.warn('Firebase Admin SDK not initialized: missing environment variables');
+    }
   } catch (error) {
     console.warn('Firebase Admin SDK not initialized:', error.message);
   }
+} else {
+  firebaseInitialized = true;
 }
 
 // Получение всех уведомлений
@@ -92,8 +107,9 @@ router.post('/', requireAuth, requireRole(['admin']), async (req, res) => {
 
 // Отправка push-уведомления
 async function sendPushNotification(title, message, targetUsers) {
-  if (!admin.apps.length) {
-    throw new Error('Firebase Admin SDK not initialized');
+  if (!firebaseInitialized) {
+    console.warn('Firebase Admin SDK not initialized, skipping push notification');
+    return;
   }
 
   try {

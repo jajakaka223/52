@@ -3,9 +3,9 @@ const { Pool } = require('pg');
 // Настройки подключения к базе данных Railway
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: {
+  ssl: process.env.NODE_ENV === 'production' ? {
     rejectUnauthorized: false
-  }
+  } : false
 });
 
 async function createNotificationsTable() {
