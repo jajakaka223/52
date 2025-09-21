@@ -256,6 +256,31 @@ router.post('/:id/assign-driver', requireAdmin, async (req, res) => {
       driverName: driverCheck.rows[0].full_name
     }, req.ip);
 
+    // Отправляем push уведомление водителю о назначенной заявке
+    try {
+      const notificationResponse = await fetch(`${process.env.RAILWAY_PUBLIC_DOMAIN || 'http://localhost:8080'}/api/notifications/send`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${req.headers.authorization?.replace('Bearer ', '')}`
+        },
+        body: JSON.stringify({
+          title: 'Назначена новая заявка!',
+          body: 'Вам назначена новая заявка, откройте приложение чтобы увидеть детали.',
+          type: 'push_user',
+          recipientId: driverId
+        })
+      });
+
+      if (notificationResponse.ok) {
+        console.log(`📱 Push notification sent to driver ${driverId} for order ${id}`);
+      } else {
+        console.error(`❌ Failed to send push notification to driver ${driverId}:`, await notificationResponse.text());
+      }
+    } catch (error) {
+      console.error('❌ Error sending push notification:', error.message);
+    }
+
     res.json({
       success: true,
       message: 'Водитель успешно назначен',

@@ -238,6 +238,24 @@ router.post('/send', authenticateToken, async (req, res) => {
                       notificationId: notification.id.toString(),
                       timestamp: new Date().toISOString()
                     },
+                    android: {
+                      priority: 'high',
+                      notification: {
+                        sound: 'default',
+                        channelId: 'default',
+                        priority: 'high',
+                        visibility: 'public'
+                      }
+                    },
+                    apns: {
+                      payload: {
+                        aps: {
+                          sound: 'default',
+                          badge: 1,
+                          'content-available': 1
+                        }
+                      }
+                    },
                     token: token
                   };
                   
