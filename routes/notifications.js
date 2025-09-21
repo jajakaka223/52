@@ -83,10 +83,10 @@ router.get('/user', authenticateToken, async (req, res) => {
     const db = getPool();
     const result = await db.query(
       `SELECT n.*, u.username as sender_name 
-       FROM notifications n 
+      FROM notifications n
        LEFT JOIN users u ON n.sender_id = u.id 
-       WHERE n.recipient_id = $1 
-       ORDER BY n.created_at DESC 
+      WHERE n.recipient_id = $1
+      ORDER BY n.created_at DESC
        LIMIT 50`,
       [req.user.userId]
     );
@@ -334,8 +334,8 @@ router.post('/send', authenticateToken, async (req, res) => {
     else if (type === 'push' || type === 'push_user') message += ` (${pushCount} push)`;
     else if (type === 'all') message += ` (${webCount} web, ${pushCount} push)`;
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       message: message,
       type: type,
       webCount,
@@ -349,15 +349,15 @@ router.post('/send', authenticateToken, async (req, res) => {
 
 // Отметить уведомление как прочитанное
 router.put('/user/:id/read', authenticateToken, async (req, res) => {
-  const { id } = req.params;
-
+    const { id } = req.params;
+    
   try {
     const db = getPool();
     const result = await db.query(
       'UPDATE notifications SET is_read = true WHERE id = $1 AND recipient_id = $2 RETURNING *',
       [id, req.user.userId]
     );
-    
+
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Notification not found' });
     }
@@ -378,8 +378,8 @@ router.patch('/mark-all-read', authenticateToken, async (req, res) => {
       [req.user.userId]
     );
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       message: `${result.rows.length} уведомлений отмечено как прочитанные`,
       count: result.rows.length
     });
@@ -391,12 +391,12 @@ router.patch('/mark-all-read', authenticateToken, async (req, res) => {
 
 // Удалить push-уведомление
 router.delete('/:id', authenticateToken, async (req, res) => {
-  const { id } = req.params;
-
+    const { id } = req.params;
+    
   try {
     const db = getPool();
     const result = await db.query('DELETE FROM notifications_push WHERE id = $1 RETURNING *', [id]);
-    
+
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Notification not found' });
     }
@@ -432,19 +432,19 @@ router.delete('/user/:id', authenticateToken, async (req, res) => {
 
 // Отправить уведомление всем пользователям (для настроек)
 router.post('/send-all', authenticateToken, async (req, res) => {
-  const { title, message } = req.body;
+    const { title, message } = req.body;
 
-  if (!title || !message) {
+    if (!title || !message) {
     return res.status(400).json({ error: 'Title and message are required' });
-  }
+    }
 
   try {
     const db = getPool();
-    
+
     // Получаем всех активных пользователей
     const usersResult = await db.query('SELECT id FROM users WHERE is_active = true');
     const userIds = usersResult.rows.map(row => row.id);
-    
+
     if (userIds.length === 0) {
       return res.status(400).json({ error: 'No active users found' });
     }
@@ -477,22 +477,45 @@ router.post('/send-all', authenticateToken, async (req, res) => {
 });
 
 // Сохранить FCM токен пользователя
-router.post('/register-token', async (req, res) => {
-  const { token, userId } = req.body;
+router.post('/register-token', authenticateToken, async (req, res) => {
+  const { token } = req.body;
+  const userId = req.user.userId; // Получаем userId из JWT токена
 
-  if (!token || !userId) {
-    return res.status(400).json({ error: 'Token and userId are required' });
+  if (!token) {
+    return res.status(400).json({ error: 'FCM token is required' });
   }
 
   try {
     const db = getPool();
-    await db.query(
-      'UPDATE users SET fcm_token = $1 WHERE id = $2',
-      [token, userId]
-    );
+    
+    // Проверяем, есть ли уже токен у пользователя
+    const existingUser = await db.query('SELECT fcm_token FROM users WHERE id = $1', [userId]);
+    
+    if (existingUser.rows.length > 0) {
+      const oldToken = existingUser.rows[0].fcm_token;
+      
+      // Обновляем токен
+      await db.query(
+        'UPDATE users SET fcm_token = $1 WHERE id = $2',
+        [token, userId]
+      );
+      
+      if (oldToken && oldToken !== token) {
+        console.log(`🔄 FCM token updated for user ${userId}: ${oldToken.substring(0, 20)}... → ${token.substring(0, 20)}...`);
+      } else {
+        console.log(`✅ FCM token registered for user ${userId}: ${token.substring(0, 20)}...`);
+      }
+    } else {
+      console.log(`❌ User ${userId} not found`);
+      return res.status(404).json({ error: 'User not found' });
+    }
 
-    console.log(`FCM token registered for user ${userId}: ${token.substring(0, 20)}...`);
-    res.json({ success: true, message: 'FCM token registered successfully' });
+    res.json({
+      success: true,
+      message: 'FCM token registered successfully',
+      userId: userId,
+      tokenPreview: token.substring(0, 20) + '...'
+    });
   } catch (error) {
     console.error('Error registering FCM token:', error);
     res.status(500).json({ error: 'Internal server error' });
