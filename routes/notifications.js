@@ -63,7 +63,7 @@ if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_PRIVATE_KEY && proce
   console.log('- FIREBASE_CLIENT_ID (optional)');
 }
 
-// Получить все push-уведомления
+// Получить все push-уведомления (для админов)
 router.get('/', authenticateToken, async (req, res) => {
   try {
     const db = getPool();
@@ -73,6 +73,20 @@ router.get('/', authenticateToken, async (req, res) => {
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching push notifications:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Получить историю push-уведомлений для мобильного приложения
+router.get('/push-history', authenticateToken, async (req, res) => {
+  try {
+    const db = getPool();
+    const result = await db.query(
+      'SELECT * FROM notifications_push ORDER BY created_at DESC LIMIT 50'
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching push notifications history:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
