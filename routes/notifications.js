@@ -84,6 +84,11 @@ router.get('/push-history', authenticateToken, async (req, res) => {
     const userId = req.user.userId;
     
     console.log(`📱 Fetching personal push history for user ${userId}`);
+    console.log(`🔍 User info:`, { userId, role: req.user.role, username: req.user.username });
+    
+    // Сначала проверим, есть ли записи в таблице
+    const countResult = await db.query('SELECT COUNT(*) as total FROM notifications_push');
+    console.log(`📊 Total push notifications in database: ${countResult.rows[0].total}`);
     
     const result = await db.query(
       'SELECT * FROM notifications_push WHERE recipient_id = $1 ORDER BY created_at DESC LIMIT 50',
@@ -91,10 +96,14 @@ router.get('/push-history', authenticateToken, async (req, res) => {
     );
     
     console.log(`✅ Found ${result.rows.length} personal push notifications for user ${userId}`);
+    console.log(`📋 Notifications:`, result.rows.map(n => ({ id: n.id, title: n.title, created_at: n.created_at })));
+    
     res.json(result.rows);
   } catch (error) {
-    console.error('Error fetching push notifications history:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('❌ Error fetching push notifications history:', error);
+    console.error('❌ Error details:', error.message);
+    console.error('❌ Stack trace:', error.stack);
+    res.status(500).json({ error: 'Internal server error', details: error.message });
   }
 });
 
@@ -201,9 +210,14 @@ router.post('/send', authenticateToken, async (req, res) => {
 
     if (type === 'push' || type === 'all' || type === 'push_user') {
       // Отправляем push уведомления
+      let targetUserId = null;
+      if (type === 'push_user' && recipientId) {
+        targetUserId = recipientId;
+      }
+      
       const pushResult = await db.query(
-        'INSERT INTO notifications_push (title, body, created_at, status) VALUES ($1, $2, NOW(), $3) RETURNING *',
-        [title, body, 'pending']
+        'INSERT INTO notifications_push (title, body, recipient_id, created_at, status) VALUES ($1, $2, $3, NOW(), $4) RETURNING *',
+        [title, body, targetUserId, 'pending']
       );
 
       const notification = pushResult.rows[0];
