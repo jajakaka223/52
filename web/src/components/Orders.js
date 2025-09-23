@@ -106,30 +106,22 @@ const Orders = ({ theme, userPermissions, user }) => {
       // Собираем человеко-читаемое направление с деталями
       const from = values.from || '';
       const to = values.to || '';
-      const load1 = { address: values.loadAddress || '', company: values.loadCompany || '', phone: values.loadPhone || 'нет' };
-      const load2 = (values.loadAddress2 || values.loadCompany2 || values.loadPhone2)
-        ? { address: values.loadAddress2 || '', company: values.loadCompany2 || '', phone: values.loadPhone2 || 'нет' }
-        : null;
-      const load3 = (values.loadAddress3 || values.loadCompany3 || values.loadPhone3)
-        ? { address: values.loadAddress3 || '', company: values.loadCompany3 || '', phone: values.loadPhone3 || 'нет' }
-        : null;
-      const unload1 = { address: values.unloadAddress || '', company: values.unloadCompany || '', phone: values.unloadPhone || 'нет' };
-      const unload2 = (values.unloadAddress2 || values.unloadCompany2 || values.unloadPhone2)
-        ? { address: values.unloadAddress2 || '', company: values.unloadCompany2 || '', phone: values.unloadPhone2 || 'нет' }
-        : null;
-      const unload3 = (values.unloadAddress3 || values.unloadCompany3 || values.unloadPhone3)
-        ? { address: values.unloadAddress3 || '', company: values.unloadCompany3 || '', phone: values.unloadPhone3 || 'нет' }
-        : null;
+      const loads = Array.isArray(values.loads) && values.loads.length
+        ? values.loads.map(l => ({ address: l?.address || '', company: l?.company || '', phone: l?.phone || 'нет' }))
+        : [{ address: values.loadAddress || '', company: values.loadCompany || '', phone: values.loadPhone || 'нет' }];
+      const unloads = Array.isArray(values.unloads) && values.unloads.length
+        ? values.unloads.map(u => ({ address: u?.address || '', company: u?.company || '', phone: u?.phone || 'нет' }))
+        : [{ address: values.unloadAddress || '', company: values.unloadCompany || '', phone: values.unloadPhone || 'нет' }];
       const comment = values.comment || '';
 
       // Явно прикрепим адреса к городам Откуда/Куда
       const withFrom = (addr) => `${from ? from + ', ' : ''}${addr}`.trim();
       const withTo = (addr) => `${to ? to + ', ' : ''}${addr}`.trim();
-      const loadLines = [load1, load2, load3].filter(Boolean).map((l, idx) => {
+      const loadLines = loads.filter(Boolean).map((l, idx) => {
         const label = idx === 0 ? 'Погрузка' : `Погрузка ${idx + 1}`;
         return `${label}: ${withFrom(l.address)} (${l.company}, ${l.phone})`;
       }).join('\n');
-      const unloadLines = [unload1, unload2, unload3].filter(Boolean).map((u, idx) => {
+      const unloadLines = unloads.filter(Boolean).map((u, idx) => {
         const label = idx === 0 ? 'Разгрузка' : `Разгрузка ${idx + 1}`;
         return `${label}: ${withTo(u.address)} (${u.company}, ${u.phone})`;
       }).join('\n');
@@ -558,8 +550,8 @@ const Orders = ({ theme, userPermissions, user }) => {
       {userPermissions?.can_create_orders && !isDriver && (
         <Card style={{ marginBottom: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ fontSize: 14 }}>
-              Для создания заявки нажмите кнопку: <Button type="link" onClick={() => setCreateModalOpen(true)} style={{ padding: 0 }}>Создать</Button>
+            <div style={{ fontSize: 14, color: theme === 'dark' ? '#fff' : undefined }}>
+              Для создания заявки нажмите кнопку:
             </div>
             <Button type="primary" onClick={() => setCreateModalOpen(true)}>Создать</Button>
           </div>
@@ -580,66 +572,56 @@ const Orders = ({ theme, userPermissions, user }) => {
               </Form.Item>
             </Space>
             <Divider orientation="left" orientationMargin={0}><span style={{ color: theme === 'dark' ? '#fff' : undefined }}>Погрузка</span></Divider>
-            <Space size={16} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-              <Form.Item name="loadAddress" label="Адрес загрузки" rules={[{ required: true, message: 'Укажите адрес загрузки' }]}>
-                <Input style={{ width: 240 }} />
-              </Form.Item>
-              <Form.Item name="loadCompany" label="Компания на загрузке" rules={[{ required: true, message: 'Укажите компанию на загрузке' }]}>
-                <Input style={{ width: 220 }} />
-              </Form.Item>
-            <Form.Item name="loadPhone" label="Телефон загрузки" normalize={v => (v ? String(v).replace(/\D/g,'') : v)}>
-                <Input style={{ width: 160 }} />
-              </Form.Item>
-            {/* Дополнительные погрузки */}
-            <Form.Item name="loadAddress2" label="Адрес загрузки 2">
-              <Input style={{ width: 240 }} />
-            </Form.Item>
-            <Form.Item name="loadCompany2" label="Компания на загрузке 2">
-              <Input style={{ width: 220 }} />
-            </Form.Item>
-            <Form.Item name="loadPhone2" label="Телефон загрузки 2" normalize={v => (v ? String(v).replace(/\D/g,'') : v)}>
-              <Input style={{ width: 160 }} />
-            </Form.Item>
-            <Form.Item name="loadAddress3" label="Адрес загрузки 3">
-              <Input style={{ width: 240 }} />
-            </Form.Item>
-            <Form.Item name="loadCompany3" label="Компания на загрузке 3">
-              <Input style={{ width: 220 }} />
-            </Form.Item>
-            <Form.Item name="loadPhone3" label="Телефон загрузки 3" normalize={v => (v ? String(v).replace(/\D/g,'') : v)}>
-              <Input style={{ width: 160 }} />
-            </Form.Item>
+            <Space direction="vertical" style={{ width: '100%' }}>
+              <Form.List name="loads" initialValue={[{}]}>
+                {(fields, { add, remove }) => (
+                  <>
+                    {fields.map((field, idx) => (
+                      <Space key={field.key} size={16} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                        <Form.Item {...field} name={[field.name, 'address']} fieldKey={[field.fieldKey, 'address']} label={idx === 0 ? 'Адрес загрузки' : `Адрес загрузки ${idx+1}` } rules={[{ required: true, message: 'Укажите адрес загрузки' }]}>
+                          <Input style={{ width: 240 }} />
+                        </Form.Item>
+                        <Form.Item {...field} name={[field.name, 'company']} fieldKey={[field.fieldKey, 'company']} label={idx === 0 ? 'Компания на загрузке' : `Компания на загрузке ${idx+1}` } rules={[{ required: true, message: 'Укажите компанию на загрузке' }]}>
+                          <Input style={{ width: 220 }} />
+                        </Form.Item>
+                        <Form.Item {...field} name={[field.name, 'phone']} fieldKey={[field.fieldKey, 'phone']} label={idx === 0 ? 'Телефон загрузки' : `Телефон загрузки ${idx+1}` } normalize={v => (v ? String(v).replace(/\D/g,'') : v)}>
+                          <Input style={{ width: 160 }} />
+                        </Form.Item>
+                        {fields.length > 1 && (
+                          <Button danger onClick={() => remove(field.name)}>Удалить</Button>
+                        )}
+                      </Space>
+                    ))}
+                    <Button onClick={() => add({})}>Добавить ещё один адрес загрузки</Button>
+                  </>
+                )}
+              </Form.List>
             </Space>
             <Divider orientation="left" orientationMargin={0}><span style={{ color: theme === 'dark' ? '#fff' : undefined }}>Разгрузка</span></Divider>
-            <Space size={16} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-              <Form.Item name="unloadAddress" label="Адрес разгрузки" rules={[{ required: true, message: 'Укажите адрес разгрузки' }]}>
-                <Input style={{ width: 240 }} />
-              </Form.Item>
-              <Form.Item name="unloadCompany" label="Компания на разгрузке" rules={[{ required: true, message: 'Укажите компанию на разгрузке' }]}>
-                <Input style={{ width: 220 }} />
-              </Form.Item>
-              <Form.Item name="unloadPhone" label="Телефон разгрузки" normalize={v => (v ? String(v).replace(/\D/g,'') : v)}>
-                <Input style={{ width: 160 }} />
-              </Form.Item>
-              {/* Дополнительные разгрузки */}
-              <Form.Item name="unloadAddress2" label="Адрес разгрузки 2">
-                <Input style={{ width: 240 }} />
-              </Form.Item>
-              <Form.Item name="unloadCompany2" label="Компания на разгрузке 2">
-                <Input style={{ width: 220 }} />
-              </Form.Item>
-              <Form.Item name="unloadPhone2" label="Телефон разгрузки 2" normalize={v => (v ? String(v).replace(/\D/g,'') : v)}>
-                <Input style={{ width: 160 }} />
-              </Form.Item>
-              <Form.Item name="unloadAddress3" label="Адрес разгрузки 3">
-                <Input style={{ width: 240 }} />
-              </Form.Item>
-              <Form.Item name="unloadCompany3" label="Компания на разгрузке 3">
-                <Input style={{ width: 220 }} />
-              </Form.Item>
-              <Form.Item name="unloadPhone3" label="Телефон разгрузки 3" normalize={v => (v ? String(v).replace(/\D/g,'') : v)}>
-                <Input style={{ width: 160 }} />
-              </Form.Item>
+            <Space direction="vertical" style={{ width: '100%' }}>
+              <Form.List name="unloads" initialValue={[{}]}>
+                {(fields, { add, remove }) => (
+                  <>
+                    {fields.map((field, idx) => (
+                      <Space key={field.key} size={16} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                        <Form.Item {...field} name={[field.name, 'address']} fieldKey={[field.fieldKey, 'address']} label={idx === 0 ? 'Адрес разгрузки' : `Адрес разгрузки ${idx+1}` } rules={[{ required: true, message: 'Укажите адрес разгрузки' }]}>
+                          <Input style={{ width: 240 }} />
+                        </Form.Item>
+                        <Form.Item {...field} name={[field.name, 'company']} fieldKey={[field.fieldKey, 'company']} label={idx === 0 ? 'Компания на разгрузке' : `Компания на разгрузке ${idx+1}` } rules={[{ required: true, message: 'Укажите компанию на разгрузке' }]}>
+                          <Input style={{ width: 220 }} />
+                        </Form.Item>
+                        <Form.Item {...field} name={[field.name, 'phone']} fieldKey={[field.fieldKey, 'phone']} label={idx === 0 ? 'Телефон разгрузки' : `Телефон разгрузки ${idx+1}` } normalize={v => (v ? String(v).replace(/\D/g,'') : v)}>
+                          <Input style={{ width: 160 }} />
+                        </Form.Item>
+                        {fields.length > 1 && (
+                          <Button danger onClick={() => remove(field.name)}>Удалить</Button>
+                        )}
+                      </Space>
+                    ))}
+                    <Button onClick={() => add({})}>Добавить ещё один адрес разгрузки</Button>
+                  </>
+                )}
+              </Form.List>
             </Space>
             <Divider orientation="left" orientationMargin={0}><span style={{ color: theme === 'dark' ? '#fff' : undefined }}>Данные по заявке</span></Divider>
             <Space size={16} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end' }}>
