@@ -49,6 +49,7 @@ const Orders = ({ theme, userPermissions, user }) => {
   const [createForm] = Form.useForm();
   const [assignModal, setAssignModal] = useState({ open: false, orderId: null });
   const [statusModal, setStatusModal] = useState({ open: false, orderId: null });
+  const [createModalOpen, setCreateModalOpen] = useState(false);
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
@@ -405,7 +406,10 @@ const Orders = ({ theme, userPermissions, user }) => {
     },
     { 
       title: 'Компания по заявке', dataIndex: 'company',
-      render: (v) => <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'inline-block', maxWidth: 220 }}>{v}</span>,
+      render: (v) => {
+        if (isDriver) return '—';
+        return <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'inline-block', maxWidth: 220 }}>{v}</span>;
+      },
       sorter: (a, b) => String(a.company||'').localeCompare(String(b.company||''), 'ru'),
       sortDirections: ['descend','ascend']
     },
@@ -420,7 +424,10 @@ const Orders = ({ theme, userPermissions, user }) => {
     },
     { 
       title: 'Имя', dataIndex: 'client_name',
-      render: (text) => text ? text.split(' ')[0] : '-',
+      render: (text) => {
+        if (isDriver) return '—';
+        return text ? text.split(' ')[0] : '-';
+      },
       sorter: (a, b) => String(a.client_name||'').localeCompare(String(b.client_name||''), 'ru'),
       sortDirections: ['descend','ascend']
     },
@@ -470,12 +477,12 @@ const Orders = ({ theme, userPermissions, user }) => {
       title: <div style={{ textAlign: 'center' }}>Действия</div>,
       render: (_, r) => (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, auto)', gap: 8 }}>
-          {userPermissions?.can_assign_drivers && (
+          {userPermissions?.can_assign_drivers && !isDriver && (
             <Button size="small" onClick={() => openAssign(r.id)}>Назначить</Button>
           )}
-          <Button size="small" onClick={() => openStatus(r.id)}>Статус</Button>
+          {!isDriver && (<Button size="small" onClick={() => openStatus(r.id)}>Статус</Button>)}
           <Button size="small" onClick={() => setDetails(r)}>Подробнее</Button>
-          {userPermissions?.can_delete_any && (
+          {userPermissions?.can_delete_any && !isDriver && (
             <Popconfirm title="Удалить заявку?" okText="Удалить" cancelText="Отмена" onConfirm={async () => {
               try {
                 await api.delete(`/api/orders/${r.id}`, { headers });
@@ -548,9 +555,19 @@ const Orders = ({ theme, userPermissions, user }) => {
       `}</style>
       <Title level={2}>Управление заявками</Title>
 
-      {userPermissions?.can_create_orders && (
-        <Card style={{ marginBottom: 16 }} title="Создать заявку">
-          <Form layout="vertical" form={createForm} onFinish={handleCreate}>
+      {userPermissions?.can_create_orders && !isDriver && (
+        <Card style={{ marginBottom: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ fontSize: 14 }}>
+              Для создания заявки нажмите кнопку: <Button type="link" onClick={() => setCreateModalOpen(true)} style={{ padding: 0 }}>Создать</Button>
+            </div>
+            <Button type="primary" onClick={() => setCreateModalOpen(true)}>Создать</Button>
+          </div>
+        </Card>
+      )}
+
+      <Modal title="Создать заявку" open={createModalOpen} onCancel={() => setCreateModalOpen(false)} footer={null} destroyOnClose>
+        <Form layout="vertical" form={createForm} onFinish={async (vals)=>{ await handleCreate(vals); setCreateModalOpen(false); }}>
             <Space size={16} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end' }}>
               <Form.Item name="date" label="Дата" rules={[{ required: true, message: 'Укажите дату' }]}> 
                 <DatePicker format="DD.MM.YYYY" placeholder="Выбрать дату" />
@@ -562,7 +579,7 @@ const Orders = ({ theme, userPermissions, user }) => {
                 <Input style={{ width: 200 }} />
               </Form.Item>
             </Space>
-            <Divider orientation="left" orientationMargin={0}>Погрузка</Divider>
+            <Divider orientation="left" orientationMargin={0}><span style={{ color: theme === 'dark' ? '#fff' : undefined }}>Погрузка</span></Divider>
             <Space size={16} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end' }}>
               <Form.Item name="loadAddress" label="Адрес загрузки" rules={[{ required: true, message: 'Укажите адрес загрузки' }]}>
                 <Input style={{ width: 240 }} />
@@ -593,7 +610,7 @@ const Orders = ({ theme, userPermissions, user }) => {
               <Input style={{ width: 160 }} />
             </Form.Item>
             </Space>
-            <Divider orientation="left" orientationMargin={0}>Разгрузка</Divider>
+            <Divider orientation="left" orientationMargin={0}><span style={{ color: theme === 'dark' ? '#fff' : undefined }}>Разгрузка</span></Divider>
             <Space size={16} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end' }}>
               <Form.Item name="unloadAddress" label="Адрес разгрузки" rules={[{ required: true, message: 'Укажите адрес разгрузки' }]}>
                 <Input style={{ width: 240 }} />
@@ -624,7 +641,7 @@ const Orders = ({ theme, userPermissions, user }) => {
                 <Input style={{ width: 160 }} />
               </Form.Item>
             </Space>
-            <Divider orientation="left" orientationMargin={0}>Данные по заявке</Divider>
+            <Divider orientation="left" orientationMargin={0}><span style={{ color: theme === 'dark' ? '#fff' : undefined }}>Данные по заявке</span></Divider>
             <Space size={16} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end' }}>
               <Form.Item name="company" label="Компания по заявке" rules={[{ required: true, message: 'Укажите компанию по заявке' }]}>
                 <Input style={{ width: 200 }} />
@@ -659,8 +676,7 @@ const Orders = ({ theme, userPermissions, user }) => {
               </Form.Item>
             </Space>
           </Form>
-        </Card>
-      )}
+      </Modal>
 
       <Card title="Заявки" style={{ width: '100%' }}>
         <div style={{ marginBottom: 12 }}>
@@ -750,7 +766,9 @@ const Orders = ({ theme, userPermissions, user }) => {
                       <p><b>{idx === 0 ? 'Телефон на разгрузке' : `Телефон на разгрузке ${idx + 1}`}:</b> {u.phone ? <button onClick={() => copy(u.phone, 'Номер скопирован')} style={{ padding: 0, border: 'none', background: 'none', color: '#1677ff', cursor: 'pointer' }}>{u.phone}</button> : 'нет'}</p>
                     </div>
                   ))}
-                  <p><b>Email:</b> {details.email ? <button onClick={() => copy(details.email, 'Email скопирован')} style={{ padding: 0, border: 'none', background: 'none', color: '#1677ff', cursor: 'pointer' }}>{details.email}</button> : '—'}</p>
+                  {!isDriver && (
+                    <p><b>Email:</b> {details.email ? <button onClick={() => copy(details.email, 'Email скопирован')} style={{ padding: 0, border: 'none', background: 'none', color: '#1677ff', cursor: 'pointer' }}>{details.email}</button> : '—'}</p>
+                  )}
                   {/* Компания по заявке / Имя / Телефон / Email скрыты по требованию */}
                   <p><b>Комментарий:</b> {(() => {
                     const commentLine = lines.find(l => l.startsWith('Комментарий:')) || '';
