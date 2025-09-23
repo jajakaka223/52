@@ -587,8 +587,8 @@ const Orders = ({ theme, userPermissions, user }) => {
                         <Form.Item {...field} name={[field.name, 'phone']} fieldKey={[field.fieldKey, 'phone']} label={idx === 0 ? 'Телефон загрузки' : `Телефон загрузки ${idx+1}` } normalize={v => (v ? String(v).replace(/\D/g,'') : v)}>
                           <Input style={{ width: 160 }} />
                         </Form.Item>
-                        {fields.length > 1 && (
-                          <Button danger onClick={() => remove(field.name)} style={{ marginLeft: 8 }}>Удалить</Button>
+                        {fields.length > 1 && idx > 0 && (
+                          <Button danger onClick={() => remove(field.name)} style={{ marginLeft: 8, marginTop: 4 }}>Удалить</Button>
                         )}
                       </Space>
                     ))}
@@ -613,8 +613,8 @@ const Orders = ({ theme, userPermissions, user }) => {
                         <Form.Item {...field} name={[field.name, 'phone']} fieldKey={[field.fieldKey, 'phone']} label={idx === 0 ? 'Телефон разгрузки' : `Телефон разгрузки ${idx+1}` } normalize={v => (v ? String(v).replace(/\D/g,'') : v)}>
                           <Input style={{ width: 160 }} />
                         </Form.Item>
-                        {fields.length > 1 && (
-                          <Button danger onClick={() => remove(field.name)} style={{ marginLeft: 8 }}>Удалить</Button>
+                        {fields.length > 1 && idx > 0 && (
+                          <Button danger onClick={() => remove(field.name)} style={{ marginLeft: 8, marginTop: 4 }}>Удалить</Button>
                         )}
                       </Space>
                     ))}
