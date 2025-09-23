@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dayjs from 'dayjs';
-import { Card, Typography, Table, Button, Space, Tag, Form, Input, DatePicker, InputNumber, Select, message, Modal, Popconfirm, Checkbox } from 'antd';
+import { Card, Typography, Table, Button, Space, Tag, Form, Input, DatePicker, InputNumber, Select, message, Modal, Popconfirm, Checkbox, Divider } from 'antd';
 import { DeleteOutlined } from '@ant-design/icons';
 import api from '../config/http';
 
@@ -369,6 +369,7 @@ const Orders = ({ theme, userPermissions, user }) => {
     };
   }, []);
 
+  const isDriver = (user?.role || '').toLowerCase() === 'driver';
   const columns = [
     { 
       title: 'Номер', dataIndex: 'id', width: 90,
@@ -410,7 +411,10 @@ const Orders = ({ theme, userPermissions, user }) => {
     },
     { 
       title: 'Email', dataIndex: 'email', 
-      render: (e) => e ? <button onClick={() => { navigator.clipboard.writeText(String(e)); message.success('Email скопирован'); }} style={{ padding: 0, border: 'none', background: 'none', color: '#1677ff', cursor: 'pointer' }}>{e}</button> : '—',
+      render: (e) => {
+        if (isDriver) return '—';
+        return e ? <button onClick={() => { navigator.clipboard.writeText(String(e)); message.success('Email скопирован'); }} style={{ padding: 0, border: 'none', background: 'none', color: '#1677ff', cursor: 'pointer' }}>{e}</button> : '—';
+      },
       sorter: (a, b) => String(a.email||'').localeCompare(String(b.email||''), 'ru'),
       sortDirections: ['descend','ascend']
     },
@@ -422,7 +426,10 @@ const Orders = ({ theme, userPermissions, user }) => {
     },
     { 
       title: 'Телефон', dataIndex: 'phone', 
-      render: (p) => p ? <button onClick={() => { navigator.clipboard.writeText(String(p)); message.success('Номер скопирован'); }} style={{ padding: 0, border: 'none', background: 'none', color: '#1677ff', cursor: 'pointer' }}>{p}</button> : '—',
+      render: (p) => {
+        if (isDriver) return '—';
+        return p ? <button onClick={() => { navigator.clipboard.writeText(String(p)); message.success('Номер скопирован'); }} style={{ padding: 0, border: 'none', background: 'none', color: '#1677ff', cursor: 'pointer' }}>{p}</button> : '—';
+      },
       sorter: (a, b) => String(a.phone||'').localeCompare(String(b.phone||''), 'ru'),
       sortDirections: ['descend','ascend']
     },
@@ -554,6 +561,9 @@ const Orders = ({ theme, userPermissions, user }) => {
               <Form.Item name="to" label="Куда" rules={[{ required: true, message: 'Укажите точку назначения' }]}>
                 <Input style={{ width: 200 }} />
               </Form.Item>
+            </Space>
+            <Divider orientation="left" orientationMargin={0}>Погрузка</Divider>
+            <Space size={16} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end' }}>
               <Form.Item name="loadAddress" label="Адрес загрузки" rules={[{ required: true, message: 'Укажите адрес загрузки' }]}>
                 <Input style={{ width: 240 }} />
               </Form.Item>
@@ -582,6 +592,9 @@ const Orders = ({ theme, userPermissions, user }) => {
             <Form.Item name="loadPhone3" label="Телефон загрузки 3" normalize={v => (v ? String(v).replace(/\D/g,'') : v)}>
               <Input style={{ width: 160 }} />
             </Form.Item>
+            </Space>
+            <Divider orientation="left" orientationMargin={0}>Разгрузка</Divider>
+            <Space size={16} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end' }}>
               <Form.Item name="unloadAddress" label="Адрес разгрузки" rules={[{ required: true, message: 'Укажите адрес разгрузки' }]}>
                 <Input style={{ width: 240 }} />
               </Form.Item>
@@ -610,6 +623,9 @@ const Orders = ({ theme, userPermissions, user }) => {
               <Form.Item name="unloadPhone3" label="Телефон разгрузки 3" normalize={v => (v ? String(v).replace(/\D/g,'') : v)}>
                 <Input style={{ width: 160 }} />
               </Form.Item>
+            </Space>
+            <Divider orientation="left" orientationMargin={0}>Данные по заявке</Divider>
+            <Space size={16} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end' }}>
               <Form.Item name="company" label="Компания по заявке" rules={[{ required: true, message: 'Укажите компанию по заявке' }]}>
                 <Input style={{ width: 200 }} />
               </Form.Item>
