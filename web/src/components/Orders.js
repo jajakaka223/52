@@ -549,11 +549,11 @@ const Orders = ({ theme, userPermissions, user }) => {
 
       {userPermissions?.can_create_orders && !isDriver && (
         <Card style={{ marginBottom: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start' }}>
             <div style={{ fontSize: 14, color: theme === 'dark' ? '#fff' : undefined }}>
               Для создания заявки нажмите кнопку:
             </div>
-            <Button type="primary" onClick={() => setCreateModalOpen(true)}>Создать</Button>
+            <Button type="primary" onClick={() => setCreateModalOpen(true)} style={{ marginLeft: 12 }}>Создать</Button>
           </div>
         </Card>
       )}
@@ -577,7 +577,7 @@ const Orders = ({ theme, userPermissions, user }) => {
                 {(fields, { add, remove }) => (
                   <>
                     {fields.map((field, idx) => (
-                      <Space key={field.key} size={16} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                      <Space key={field.key} size={16} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: 8 }}>
                         <Form.Item {...field} name={[field.name, 'address']} fieldKey={[field.fieldKey, 'address']} label={idx === 0 ? 'Адрес загрузки' : `Адрес загрузки ${idx+1}` } rules={[{ required: true, message: 'Укажите адрес загрузки' }]}>
                           <Input style={{ width: 240 }} />
                         </Form.Item>
@@ -588,11 +588,11 @@ const Orders = ({ theme, userPermissions, user }) => {
                           <Input style={{ width: 160 }} />
                         </Form.Item>
                         {fields.length > 1 && (
-                          <Button danger onClick={() => remove(field.name)}>Удалить</Button>
+                          <Button danger onClick={() => remove(field.name)} style={{ marginLeft: 8 }}>Удалить</Button>
                         )}
                       </Space>
                     ))}
-                    <Button onClick={() => add({})}>Добавить ещё один адрес загрузки</Button>
+                    <Button onClick={() => add({})} style={{ marginTop: 8 }}>Добавить ещё один адрес загрузки</Button>
                   </>
                 )}
               </Form.List>
@@ -603,7 +603,7 @@ const Orders = ({ theme, userPermissions, user }) => {
                 {(fields, { add, remove }) => (
                   <>
                     {fields.map((field, idx) => (
-                      <Space key={field.key} size={16} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                      <Space key={field.key} size={16} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: 8 }}>
                         <Form.Item {...field} name={[field.name, 'address']} fieldKey={[field.fieldKey, 'address']} label={idx === 0 ? 'Адрес разгрузки' : `Адрес разгрузки ${idx+1}` } rules={[{ required: true, message: 'Укажите адрес разгрузки' }]}>
                           <Input style={{ width: 240 }} />
                         </Form.Item>
@@ -614,11 +614,11 @@ const Orders = ({ theme, userPermissions, user }) => {
                           <Input style={{ width: 160 }} />
                         </Form.Item>
                         {fields.length > 1 && (
-                          <Button danger onClick={() => remove(field.name)}>Удалить</Button>
+                          <Button danger onClick={() => remove(field.name)} style={{ marginLeft: 8 }}>Удалить</Button>
                         )}
                       </Space>
                     ))}
-                    <Button onClick={() => add({})}>Добавить ещё один адрес разгрузки</Button>
+                    <Button onClick={() => add({})} style={{ marginTop: 8 }}>Добавить ещё один адрес разгрузки</Button>
                   </>
                 )}
               </Form.List>
