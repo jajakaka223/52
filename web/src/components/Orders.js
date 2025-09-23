@@ -480,7 +480,7 @@ const Orders = ({ theme, userPermissions, user }) => {
           {userPermissions?.can_assign_drivers && !isDriver && (
             <Button size="small" onClick={() => openAssign(r.id)}>Назначить</Button>
           )}
-          {!isDriver && (<Button size="small" onClick={() => openStatus(r.id)}>Статус</Button>)}
+          <Button size="small" onClick={() => openStatus(r.id)}>Статус</Button>
           <Button size="small" onClick={() => setDetails(r)}>Подробнее</Button>
           {userPermissions?.can_delete_any && !isDriver && (
             <Popconfirm title="Удалить заявку?" okText="Удалить" cancelText="Отмена" onConfirm={async () => {
@@ -784,9 +784,11 @@ const Orders = ({ theme, userPermissions, user }) => {
             })()}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, gap: 12 }}>
               <div style={{ flex: 1 }} />
-              <div>
-                <Button onClick={() => { setEditVisible(true); editForm.setFieldsValue(parseDetailsToFields(details)); }}>Редактировать</Button>
-              </div>
+              {!isDriver && (
+                <div>
+                  <Button onClick={() => { setEditVisible(true); editForm.setFieldsValue(parseDetailsToFields(details)); }}>Редактировать</Button>
+                </div>
+              )}
             </div>
             <div className="map-center-wrap" style={{ height: 260, borderRadius: 8, overflow: 'hidden', marginTop: 8 }}>
               <div ref={routeMapRef} style={{ width: '100%', height: '100%' }} />
@@ -962,12 +964,21 @@ const Orders = ({ theme, userPermissions, user }) => {
           onChange={handleChangeStatus}
           key={statusModal.orderId || 'status'}
         >
-          <Option value="new">Новая</Option>
-          <Option value="assigned">Назначена</Option>
-          <Option value="in_progress">В пути</Option>
-          <Option value="unloaded">Разгрузился</Option>
-          <Option value="completed">Выполнена</Option>
-          <Option value="cancelled">Отменена</Option>
+          {isDriver ? (
+            <>
+              <Option value="in_progress">В пути</Option>
+              <Option value="unloaded">Разгрузился</Option>
+            </>
+          ) : (
+            <>
+              <Option value="new">Новая</Option>
+              <Option value="assigned">Назначена</Option>
+              <Option value="in_progress">В пути</Option>
+              <Option value="unloaded">Разгрузился</Option>
+              <Option value="completed">Выполнена</Option>
+              <Option value="cancelled">Отменена</Option>
+            </>
+          )}
         </Select>
       </Modal>
     </div>
