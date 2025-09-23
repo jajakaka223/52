@@ -108,15 +108,23 @@ const Orders = ({ theme, userPermissions, user }) => {
       const loadAddress = values.loadAddress || '';
       const loadCompany = values.loadCompany || '';
       const loadPhone = values.loadPhone || 'нет';
-      const unloadAddress = values.unloadAddress || '';
-      const unloadCompany = values.unloadCompany || '';
-      const unloadPhone = values.unloadPhone || 'нет';
+      const unload1 = { address: values.unloadAddress || '', company: values.unloadCompany || '', phone: values.unloadPhone || 'нет' };
+      const unload2 = (values.unloadAddress2 || values.unloadCompany2 || values.unloadPhone2)
+        ? { address: values.unloadAddress2 || '', company: values.unloadCompany2 || '', phone: values.unloadPhone2 || 'нет' }
+        : null;
+      const unload3 = (values.unloadAddress3 || values.unloadCompany3 || values.unloadPhone3)
+        ? { address: values.unloadAddress3 || '', company: values.unloadCompany3 || '', phone: values.unloadPhone3 || 'нет' }
+        : null;
       const comment = values.comment || '';
 
       // Явно прикрепим адреса к городам Откуда/Куда
       const loadFull = `${from ? from + ', ' : ''}${loadAddress}`.trim();
-      const unloadFull = `${to ? to + ', ' : ''}${unloadAddress}`.trim();
-      const directionDetails = `${from} → ${to}\nПогрузка: ${loadFull} (${loadCompany}, ${loadPhone})\nРазгрузка: ${unloadFull} (${unloadCompany}, ${unloadPhone})${comment ? `\nКомментарий: ${comment}` : ''}`;
+      const withTo = (addr) => `${to ? to + ', ' : ''}${addr}`.trim();
+      const unloadLines = [unload1, unload2, unload3].filter(Boolean).map((u, idx) => {
+        const label = idx === 0 ? 'Разгрузка' : `Разгрузка ${idx + 1}`;
+        return `${label}: ${withTo(u.address)} (${u.company}, ${u.phone})`;
+      }).join('\n');
+      const directionDetails = `${from} → ${to}\nПогрузка: ${loadFull} (${loadCompany}, ${loadPhone})\n${unloadLines}${comment ? `\nКомментарий: ${comment}` : ''}`;
 
       const payload = {
         date: values.date?.format('YYYY-MM-DD'),
@@ -292,7 +300,7 @@ const Orders = ({ theme, userPermissions, user }) => {
     const first = lines[0] || '';
     const [from, to] = first.split(' → ');
     const loadLine = lines.find(l => l.startsWith('Погрузка:')) || '';
-    const unloadLine = lines.find(l => l.startsWith('Разгрузка:')) || '';
+    const unloadLines = lines.filter(l => l.startsWith('Разгрузка'));
     const extractPart = (line) => {
       const idx = line.indexOf(':');
       return idx >= 0 ? line.slice(idx + 1).trim() : line;
@@ -309,7 +317,8 @@ const Orders = ({ theme, userPermissions, user }) => {
     const commentIdx = commentLine.indexOf(':');
     const comment = commentIdx >= 0 ? commentLine.slice(commentIdx + 1).trim() : '';
     const loadParsed = splitCompanyPhone(extractPart(loadLine));
-    const unloadParsed = splitCompanyPhone(extractPart(unloadLine));
+    const unloadParsedArr = unloadLines.map(l => splitCompanyPhone(extractPart(l)));
+    const unloadParsed = unloadParsedArr[0] || { address: '', company: '', phone: '' };
     const escapeReg = (s) => String(s || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const stripCityPrefix = (addr, city) => {
       let result = String(addr || '').trim();
@@ -328,6 +337,12 @@ const Orders = ({ theme, userPermissions, user }) => {
       unloadAddress: stripCityPrefix(unloadParsed.address, to),
       unloadCompany: unloadParsed.company || '',
       unloadPhone: unloadParsed.phone || '',
+      unloadAddress2: unloadParsedArr[1] ? stripCityPrefix(unloadParsedArr[1].address, to) : '',
+      unloadCompany2: unloadParsedArr[1]?.company || '',
+      unloadPhone2: unloadParsedArr[1]?.phone || '',
+      unloadAddress3: unloadParsedArr[2] ? stripCityPrefix(unloadParsedArr[2].address, to) : '',
+      unloadCompany3: unloadParsedArr[2]?.company || '',
+      unloadPhone3: unloadParsedArr[2]?.phone || '',
       comment,
       company: order.company || '',
       clientName: order.client_name || '',
@@ -530,7 +545,7 @@ const Orders = ({ theme, userPermissions, user }) => {
               <Form.Item name="loadCompany" label="Компания на загрузке" rules={[{ required: true, message: 'Укажите компанию на загрузке' }]}>
                 <Input style={{ width: 220 }} />
               </Form.Item>
-              <Form.Item name="loadPhone" label="Телефон загрузки">
+              <Form.Item name="loadPhone" label="Телефон загрузки" normalize={v => (v ? String(v).replace(/\D/g,'') : v)}>
                 <Input style={{ width: 160 }} />
               </Form.Item>
               <Form.Item name="unloadAddress" label="Адрес разгрузки" rules={[{ required: true, message: 'Укажите адрес разгрузки' }]}>
@@ -539,7 +554,26 @@ const Orders = ({ theme, userPermissions, user }) => {
               <Form.Item name="unloadCompany" label="Компания на разгрузке" rules={[{ required: true, message: 'Укажите компанию на разгрузке' }]}>
                 <Input style={{ width: 220 }} />
               </Form.Item>
-              <Form.Item name="unloadPhone" label="Телефон разгрузки">
+              <Form.Item name="unloadPhone" label="Телефон разгрузки" normalize={v => (v ? String(v).replace(/\D/g,'') : v)}>
+                <Input style={{ width: 160 }} />
+              </Form.Item>
+              {/* Дополнительные разгрузки */}
+              <Form.Item name="unloadAddress2" label="Адрес разгрузки 2">
+                <Input style={{ width: 240 }} />
+              </Form.Item>
+              <Form.Item name="unloadCompany2" label="Компания на разгрузке 2">
+                <Input style={{ width: 220 }} />
+              </Form.Item>
+              <Form.Item name="unloadPhone2" label="Телефон разгрузки 2" normalize={v => (v ? String(v).replace(/\D/g,'') : v)}>
+                <Input style={{ width: 160 }} />
+              </Form.Item>
+              <Form.Item name="unloadAddress3" label="Адрес разгрузки 3">
+                <Input style={{ width: 240 }} />
+              </Form.Item>
+              <Form.Item name="unloadCompany3" label="Компания на разгрузке 3">
+                <Input style={{ width: 220 }} />
+              </Form.Item>
+              <Form.Item name="unloadPhone3" label="Телефон разгрузки 3" normalize={v => (v ? String(v).replace(/\D/g,'') : v)}>
                 <Input style={{ width: 160 }} />
               </Form.Item>
               <Form.Item name="company" label="Компания по заявке" rules={[{ required: true, message: 'Укажите компанию по заявке' }]}>
@@ -548,7 +582,7 @@ const Orders = ({ theme, userPermissions, user }) => {
               <Form.Item name="clientName" label="Имя" rules={[{ required: true, message: 'Укажите имя' }]}> 
                 <Input style={{ width: 160 }} />
               </Form.Item>
-              <Form.Item name="phone" label="Телефон">
+              <Form.Item name="phone" label="Телефон" normalize={v => (v ? String(v).replace(/\D/g,'') : v)}>
                 <Input style={{ width: 160 }} />
               </Form.Item>
               <Form.Item name="email" label="Email">
@@ -631,7 +665,7 @@ const Orders = ({ theme, userPermissions, user }) => {
               const first = lines[0] || '';
               const [from, to] = first.split(' → ');
               const loadLine = lines.find(l => l.startsWith('Погрузка:')) || '';
-              const unloadLine = lines.find(l => l.startsWith('Разгрузка:')) || '';
+              const unloadLines = lines.filter(l => l.startsWith('Разгрузка'));
               const extractPart = (line) => {
                 const idx = line.indexOf(':');
                 return idx >= 0 ? line.slice(idx + 1).trim() : line;
@@ -645,7 +679,7 @@ const Orders = ({ theme, userPermissions, user }) => {
                 return { address, company, phone };
               };
               const loadParsed = splitCompanyPhone(extractPart(loadLine));
-              const unloadParsed = splitCompanyPhone(extractPart(unloadLine));
+              const unloadParsedArr = unloadLines.map(l => splitCompanyPhone(extractPart(l)));
               const openMap = (addr) => window.open(`https://yandex.ru/maps/?text=${encodeURIComponent(addr)}`, '_blank');
               const copy = (text, msg) => { navigator.clipboard.writeText(String(text || '')); message.success(msg); };
               return (
@@ -655,9 +689,13 @@ const Orders = ({ theme, userPermissions, user }) => {
                   <p><b>Адрес загрузки:</b> {loadParsed.address ? <button onClick={() => openMap(loadParsed.address)} style={{ padding: 0, border: 'none', background: 'none', color: '#1677ff', cursor: 'pointer' }}>{loadParsed.address}</button> : '—'}</p>
                   <p><b>Компания на загрузке:</b> {loadParsed.company || '—'}</p>
                   <p><b>Телефон на загрузке:</b> {loadParsed.phone ? <button onClick={() => copy(loadParsed.phone, 'Номер скопирован')} style={{ padding: 0, border: 'none', background: 'none', color: '#1677ff', cursor: 'pointer' }}>{loadParsed.phone}</button> : 'нет'}</p>
-                  <p><b>Адрес разгрузки:</b> {unloadParsed.address ? <button onClick={() => openMap(unloadParsed.address)} style={{ padding: 0, border: 'none', background: 'none', color: '#1677ff', cursor: 'pointer' }}>{unloadParsed.address}</button> : '—'}</p>
-                  <p><b>Компания на разгрузке:</b> {unloadParsed.company || '—'}</p>
-                  <p><b>Телефон на разгрузке:</b> {unloadParsed.phone ? <button onClick={() => copy(unloadParsed.phone, 'Номер скопирован')} style={{ padding: 0, border: 'none', background: 'none', color: '#1677ff', cursor: 'pointer' }}>{unloadParsed.phone}</button> : 'нет'}</p>
+                  {unloadParsedArr.map((u, idx) => (
+                    <div key={idx}>
+                      <p><b>{idx === 0 ? 'Адрес разгрузки' : `Адрес разгрузки ${idx + 1}`}:</b> {u.address ? <button onClick={() => openMap(u.address)} style={{ padding: 0, border: 'none', background: 'none', color: '#1677ff', cursor: 'pointer' }}>{u.address}</button> : '—'}</p>
+                      <p><b>{idx === 0 ? 'Компания на разгрузке' : `Компания на разгрузке ${idx + 1}`}:</b> {u.company || '—'}</p>
+                      <p><b>{idx === 0 ? 'Телефон на разгрузке' : `Телефон на разгрузке ${idx + 1}`}:</b> {u.phone ? <button onClick={() => copy(u.phone, 'Номер скопирован')} style={{ padding: 0, border: 'none', background: 'none', color: '#1677ff', cursor: 'pointer' }}>{u.phone}</button> : 'нет'}</p>
+                    </div>
+                  ))}
                   <p><b>Email:</b> {details.email ? <button onClick={() => copy(details.email, 'Email скопирован')} style={{ padding: 0, border: 'none', background: 'none', color: '#1677ff', cursor: 'pointer' }}>{details.email}</button> : '—'}</p>
                   {/* Компания по заявке / Имя / Телефон / Email скрыты по требованию */}
                   <p><b>Комментарий:</b> {(() => {
@@ -697,16 +735,24 @@ const Orders = ({ theme, userPermissions, user }) => {
             const loadAddress = vals.loadAddress || '';
             const loadCompany = vals.loadCompany || '';
             const loadPhone = vals.loadPhone || 'нет';
-            const unloadAddress = vals.unloadAddress || '';
-            const unloadCompany = vals.unloadCompany || '';
-            const unloadPhone = vals.unloadPhone || 'нет';
+            const unload1 = { address: vals.unloadAddress || '', company: vals.unloadCompany || '', phone: vals.unloadPhone || 'нет' };
+            const unload2 = (vals.unloadAddress2 || vals.unloadCompany2 || vals.unloadPhone2)
+              ? { address: vals.unloadAddress2 || '', company: vals.unloadCompany2 || '', phone: vals.unloadPhone2 || 'нет' }
+              : null;
+            const unload3 = (vals.unloadAddress3 || vals.unloadCompany3 || vals.unloadPhone3)
+              ? { address: vals.unloadAddress3 || '', company: vals.unloadCompany3 || '', phone: vals.unloadPhone3 || 'нет' }
+              : null;
             const comment = vals.comment || '';
 
             const startsWithCity = (city, addr) => city && new RegExp(`^${escape(city)}\\s*,`, 'i').test(String(addr));
             function escape(s){ return String(s||'').replace(/[.*+?^${}()|[\]\\]/g,'\\$&'); }
             const loadFull = startsWithCity(from, loadAddress) ? loadAddress : `${from ? from + ', ' : ''}${loadAddress}`.trim();
-            const unloadFull = startsWithCity(to, unloadAddress) ? unloadAddress : `${to ? to + ', ' : ''}${unloadAddress}`.trim();
-            const directionDetails = `${from} → ${to}\nПогрузка: ${loadFull} (${loadCompany}, ${loadPhone})\nРазгрузка: ${unloadFull} (${unloadCompany}, ${unloadPhone})${comment ? `\nКомментарий: ${comment}` : ''}`;
+            const toPref = (addr) => (startsWithCity(to, addr) ? addr : `${to ? to + ', ' : ''}${addr}`).trim();
+            const unloadLines = [unload1, unload2, unload3].filter(Boolean).map((u, idx) => {
+              const label = idx === 0 ? 'Разгрузка' : `Разгрузка ${idx + 1}`;
+              return `${label}: ${toPref(u.address)} (${u.company}, ${u.phone})`;
+            }).join('\n');
+            const directionDetails = `${from} → ${to}\nПогрузка: ${loadFull} (${loadCompany}, ${loadPhone})\n${unloadLines}${comment ? `\nКомментарий: ${comment}` : ''}`;
 
             const payload = {
               date: vals.date ? dayjs(vals.date).format('YYYY-MM-DD') : null,

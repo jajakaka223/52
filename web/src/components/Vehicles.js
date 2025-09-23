@@ -87,7 +87,7 @@ const Vehicles = () => {
 
 
   const columns = [
-    { title: 'ID', dataIndex: 'id', width: 70 },
+    { title: 'ID', dataIndex: 'id', width: 70, sorter: (a,b)=>Number(a.id||0)-Number(b.id||0), defaultSortOrder: 'descend', sortDirections: ['descend','ascend'] },
     { title: 'Марка', dataIndex: 'name' },
     { title: 'Модель', dataIndex: 'model' },
     { title: 'Гос. номер', dataIndex: 'plate_number' },

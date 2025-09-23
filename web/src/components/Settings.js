@@ -170,7 +170,7 @@ const Settings = ({ user, userPermissions }) => {
   };
 
   const columns = [
-    { title: 'ID', dataIndex: 'id', width: 70 },
+    { title: 'ID', dataIndex: 'id', width: 70, sorter: (a,b)=>Number(a.id||0)-Number(b.id||0), defaultSortOrder: 'descend', sortDirections: ['descend','ascend'] },
     { title: 'Логин', dataIndex: 'username' },
     { title: 'ФИО', dataIndex: 'full_name' },
     { title: 'Роль', dataIndex: 'role', render: (v) => (roles.find(r => r.key === v)?.title || (v === 'admin' ? 'Администратор' : (v === 'driver' ? 'Водитель' : v))) },
@@ -279,7 +279,7 @@ const Settings = ({ user, userPermissions }) => {
                 <Form.Item name="email" label="Email" normalize={v => (v != null ? String(v).trim() : v)}> <Input /> </Form.Item>
               </div>
               <div style={{ gridColumn: 'span 2' }}>
-                <Form.Item name="phone" label="Телефон" normalize={v => (v != null ? String(v).trim() : v)}>
+                <Form.Item name="phone" label="Телефон" normalize={v => (v != null ? String(v).replace(/\D/g,'') : v)}>
                   <Input />
                 </Form.Item>
               </div>
