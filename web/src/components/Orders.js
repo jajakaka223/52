@@ -470,10 +470,8 @@ const Orders = ({ theme, userPermissions, user }) => {
     }
   ];
 
-  // Фильтр по статусам (водителю показываем только допустимые)
-  const allStatuses = isDriver
-    ? ['in_progress','unloaded']
-    : ['new','assigned','in_progress','unloaded','awaiting_payment','send_originals','completed','cancelled'];
+  // Фильтр по статусам (в фильтрах водителю показываем все статусы)
+  const allStatuses = ['new','assigned','in_progress','unloaded','awaiting_payment','send_originals','completed','cancelled'];
   const [visibleStatuses, setVisibleStatuses] = useState(allStatuses);
   const filteredOrders = useMemo(() => (
     Array.isArray(orders) ? orders.filter(o => visibleStatuses.includes(o.status || 'new')) : []
