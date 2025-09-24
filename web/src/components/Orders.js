@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dayjs from 'dayjs';
-import { Card, Typography, Table, Button, Space, Tag, Form, Input, DatePicker, InputNumber, Select, message, Modal, Popconfirm, Checkbox } from 'antd';
+import { Card, Typography, Table, Button, Space, Tag, Form, Input, DatePicker, InputNumber, Select, message, Modal, Popconfirm, Checkbox, Divider } from 'antd';
 import { DeleteOutlined } from '@ant-design/icons';
 import api from '../config/http';
 
@@ -54,6 +54,7 @@ const Orders = ({ theme, userPermissions, user }) => {
   const [createForm] = Form.useForm();
   const [assignModal, setAssignModal] = useState({ open: false, orderId: null });
   const [statusModal, setStatusModal] = useState({ open: false, orderId: null });
+  const [createModalOpen, setCreateModalOpen] = useState(false);
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
@@ -350,6 +351,7 @@ const Orders = ({ theme, userPermissions, user }) => {
     };
   }, []);
 
+  const isDriver = (user?.role || '').toLowerCase() === 'driver';
   const columns = [
     { 
       title: 'Номер', dataIndex: 'id', width: 90,
@@ -385,25 +387,25 @@ const Orders = ({ theme, userPermissions, user }) => {
     },
     { 
       title: 'Компания по заявке', dataIndex: 'company',
-      render: (v) => <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'inline-block', maxWidth: 220 }}>{v}</span>,
+      render: (v) => isDriver ? '—' : <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'inline-block', maxWidth: 220 }}>{v}</span>,
       sorter: (a, b) => String(a.company||'').localeCompare(String(b.company||''), 'ru'),
       sortDirections: ['descend','ascend']
     },
     { 
       title: 'Email', dataIndex: 'email', 
-      render: (e) => e ? <button onClick={() => { navigator.clipboard.writeText(String(e)); message.success('Email скопирован'); }} style={{ padding: 0, border: 'none', background: 'none', color: '#1677ff', cursor: 'pointer' }}>{e}</button> : '—',
+      render: (e) => isDriver ? '—' : (e ? <button onClick={() => { navigator.clipboard.writeText(String(e)); message.success('Email скопирован'); }} style={{ padding: 0, border: 'none', background: 'none', color: '#1677ff', cursor: 'pointer' }}>{e}</button> : '—'),
       sorter: (a, b) => String(a.email||'').localeCompare(String(b.email||''), 'ru'),
       sortDirections: ['descend','ascend']
     },
     { 
       title: 'Имя', dataIndex: 'client_name',
-      render: (text) => text ? text.split(' ')[0] : '-',
+      render: (text) => isDriver ? '—' : (text ? text.split(' ')[0] : '-'),
       sorter: (a, b) => String(a.client_name||'').localeCompare(String(b.client_name||''), 'ru'),
       sortDirections: ['descend','ascend']
     },
     { 
       title: 'Телефон', dataIndex: 'phone', 
-      render: (p) => p ? <button onClick={() => { navigator.clipboard.writeText(String(p)); message.success('Номер скопирован'); }} style={{ padding: 0, border: 'none', background: 'none', color: '#1677ff', cursor: 'pointer' }}>{p}</button> : '—',
+      render: (p) => isDriver ? '—' : (p ? <button onClick={() => { navigator.clipboard.writeText(String(p)); message.success('Номер скопирован'); }} style={{ padding: 0, border: 'none', background: 'none', color: '#1677ff', cursor: 'pointer' }}>{p}</button> : '—'),
       sorter: (a, b) => String(a.phone||'').localeCompare(String(b.phone||''), 'ru'),
       sortDirections: ['descend','ascend']
     },
@@ -445,12 +447,12 @@ const Orders = ({ theme, userPermissions, user }) => {
       title: <div style={{ textAlign: 'center' }}>Действия</div>,
       render: (_, r) => (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, auto)', gap: 8 }}>
-          {userPermissions?.can_assign_drivers && (
+          {userPermissions?.can_assign_drivers && !isDriver && (
             <Button size="small" onClick={() => openAssign(r.id)}>Назначить</Button>
           )}
           <Button size="small" onClick={() => openStatus(r.id)}>Статус</Button>
           <Button size="small" onClick={() => setDetails(r)}>Подробнее</Button>
-          {userPermissions?.can_delete_any && (
+          {userPermissions?.can_delete_any && !isDriver && (
             <Popconfirm title="Удалить заявку?" okText="Удалить" cancelText="Отмена" onConfirm={async () => {
               try {
                 await api.delete(`/api/orders/${r.id}`, { headers });
@@ -523,72 +525,118 @@ const allStatuses = ['new','assigned','in_progress','unloaded','awaiting_payment
       `}</style>
       <Title level={2}>Управление заявками</Title>
 
-      {userPermissions?.can_create_orders && (
-        <Card style={{ marginBottom: 16 }} title="Создать заявку">
-          <Form layout="vertical" form={createForm} onFinish={handleCreate}>
-            <Space size={16} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-              <Form.Item name="date" label="Дата" rules={[{ required: true, message: 'Укажите дату' }]}> 
-                <DatePicker format="DD.MM.YYYY" placeholder="Выбрать дату" />
-              </Form.Item>
-              <Form.Item name="from" label="Откуда" rules={[{ required: true, message: 'Укажите точку отправления' }]}>
-                <Input style={{ width: 180 }} />
-              </Form.Item>
-              <Form.Item name="to" label="Куда" rules={[{ required: true, message: 'Укажите точку назначения' }]}>
-                <Input style={{ width: 200 }} />
-              </Form.Item>
-              <Form.Item name="loadAddress" label="Адрес загрузки" rules={[{ required: true, message: 'Укажите адрес загрузки' }]}>
-                <Input style={{ width: 240 }} />
-              </Form.Item>
-              <Form.Item name="loadCompany" label="Компания на загрузке" rules={[{ required: true, message: 'Укажите компанию на загрузке' }]}>
-                <Input style={{ width: 220 }} />
-              </Form.Item>
-              <Form.Item name="loadPhone" label="Телефон загрузки">
-                <Input style={{ width: 160 }} />
-              </Form.Item>
-              <Form.Item name="unloadAddress" label="Адрес разгрузки" rules={[{ required: true, message: 'Укажите адрес разгрузки' }]}>
-                <Input style={{ width: 240 }} />
-              </Form.Item>
-              <Form.Item name="unloadCompany" label="Компания на разгрузке" rules={[{ required: true, message: 'Укажите компанию на разгрузке' }]}>
-                <Input style={{ width: 220 }} />
-              </Form.Item>
-              <Form.Item name="unloadPhone" label="Телефон разгрузки">
-                <Input style={{ width: 160 }} />
-              </Form.Item>
-              <Form.Item name="company" label="Компания по заявке" rules={[{ required: true, message: 'Укажите компанию по заявке' }]}>
-                <Input style={{ width: 200 }} />
-              </Form.Item>
-              <Form.Item name="clientName" label="Имя" rules={[{ required: true, message: 'Укажите имя' }]}> 
-                <Input style={{ width: 160 }} />
-              </Form.Item>
-              <Form.Item name="phone" label="Телефон">
-                <Input style={{ width: 160 }} />
-              </Form.Item>
-              <Form.Item name="email" label="Email">
-                <Input style={{ width: 220 }} />
-              </Form.Item>
-              <Form.Item name="comment" label="Комментарий">
-                <Input.TextArea style={{ width: 320 }} rows={1} />
-              </Form.Item>
-              <Form.Item name="weight" label="Вес">
-                <InputNumber min={0} step={0.1} style={{ width: 120 }} />
-              </Form.Item>
-              <Form.Item name="amount" label="Сумма">
-                <InputNumber min={0} style={{ width: 140 }} />
-              </Form.Item>
-              <Form.Item name="driverId" label="Водитель">
-                <Select allowClear placeholder="Не назначать" style={{ width: 220 }}>
-                  {drivers.map(d => (
-                    <Option key={d.id} value={d.id}>{d.full_name || d.username}</Option>
-                  ))}
-                </Select>
-              </Form.Item>
-              <Form.Item>
-                <Button type="primary" htmlType="submit">Создать</Button>
-              </Form.Item>
-            </Space>
-          </Form>
+      {userPermissions?.can_create_orders && !isDriver && (
+        <Card style={{ marginBottom: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start' }}>
+            <div style={{ fontSize: 14, color: theme === 'dark' ? '#fff' : undefined }}>
+              Для создания заявки нажмите кнопку:
+            </div>
+            <Button type="primary" onClick={() => setCreateModalOpen(true)} style={{ marginLeft: 12 }}>Создать</Button>
+          </div>
         </Card>
       )}
+
+      <Modal title="Создать заявку" open={createModalOpen} onCancel={() => setCreateModalOpen(false)} footer={null} destroyOnClose>
+        <Form layout="vertical" form={createForm} onFinish={async (vals)=>{ await handleCreate(vals); setCreateModalOpen(false); }}>
+          <Space size={16} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            <Form.Item name="date" label="Дата" rules={[{ required: true, message: 'Укажите дату' }]}> 
+              <DatePicker format="DD.MM.YYYY" placeholder="Выбрать дату" />
+            </Form.Item>
+            <Form.Item name="from" label="Откуда" rules={[{ required: true, message: 'Укажите точку отправления' }]}>
+              <Input style={{ width: 180 }} />
+            </Form.Item>
+            <Form.Item name="to" label="Куда" rules={[{ required: true, message: 'Укажите точку назначения' }]}>
+              <Input style={{ width: 200 }} />
+            </Form.Item>
+          </Space>
+          <Divider orientation="left" orientationMargin={0}><span style={{ color: theme === 'dark' ? '#fff' : undefined }}>Погрузка</span></Divider>
+          <Space direction="vertical" style={{ width: '100%' }}>
+            <Form.List name="loads" initialValue={[{}]}>
+              {(fields, { add, remove }) => (
+                <>
+                  {fields.map((field, idx) => (
+                    <Space key={field.key} size={16} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: 8 }}>
+                      <Form.Item {...field} name={[field.name, 'address']} fieldKey={[field.fieldKey, 'address']} label={idx === 0 ? 'Адрес загрузки' : `Адрес загрузки ${idx+1}` } rules={[{ required: true, message: 'Укажите адрес загрузки' }]}>
+                        <Input style={{ width: 240 }} />
+                      </Form.Item>
+                      <Form.Item {...field} name={[field.name, 'company']} fieldKey={[field.fieldKey, 'company']} label={idx === 0 ? 'Компания на загрузке' : `Компания на загрузке ${idx+1}` } rules={[{ required: true, message: 'Укажите компанию на загрузке' }]}>
+                        <Input style={{ width: 220 }} />
+                      </Form.Item>
+                      <Form.Item {...field} name={[field.name, 'phone']} fieldKey={[field.fieldKey, 'phone']} label={idx === 0 ? 'Телефон загрузки' : `Телефон загрузки ${idx+1}` } normalize={v => (v ? String(v).replace(/\D/g,'') : v)}>
+                        <Input style={{ width: 160 }} />
+                      </Form.Item>
+                      {fields.length > 1 && idx > 0 && (
+                        <Button danger onClick={() => remove(field.name)} style={{ marginLeft: 8, marginTop: 4 }}>Удалить</Button>
+                      )}
+                    </Space>
+                  ))}
+                  <Button onClick={() => add({})} style={{ marginTop: 8 }}>Добавить ещё один адрес загрузки</Button>
+                </>
+              )}
+            </Form.List>
+          </Space>
+          <Divider orientation="left" orientationMargin={0}><span style={{ color: theme === 'dark' ? '#fff' : undefined }}>Разгрузка</span></Divider>
+          <Space direction="vertical" style={{ width: '100%' }}>
+            <Form.List name="unloads" initialValue={[{}]}>
+              {(fields, { add, remove }) => (
+                <>
+                  {fields.map((field, idx) => (
+                    <Space key={field.key} size={16} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: 8 }}>
+                      <Form.Item {...field} name={[field.name, 'address']} fieldKey={[field.fieldKey, 'address']} label={idx === 0 ? 'Адрес разгрузки' : `Адрес разгрузки ${idx+1}` } rules={[{ required: true, message: 'Укажите адрес разгрузки' }]}>
+                        <Input style={{ width: 240 }} />
+                      </Form.Item>
+                      <Form.Item {...field} name={[field.name, 'company']} fieldKey={[field.fieldKey, 'company']} label={idx === 0 ? 'Компания на разгрузке' : `Компания на разгрузке ${idx+1}` } rules={[{ required: true, message: 'Укажите компанию на разгрузке' }]}>
+                        <Input style={{ width: 220 }} />
+                      </Form.Item>
+                      <Form.Item {...field} name={[field.name, 'phone']} fieldKey={[field.fieldKey, 'phone']} label={idx === 0 ? 'Телефон разгрузки' : `Телефон разгрузки ${idx+1}` } normalize={v => (v ? String(v).replace(/\D/g,'') : v)}>
+                        <Input style={{ width: 160 }} />
+                      </Form.Item>
+                      {fields.length > 1 && idx > 0 && (
+                        <Button danger onClick={() => remove(field.name)} style={{ marginLeft: 8, marginTop: 4 }}>Удалить</Button>
+                      )}
+                    </Space>
+                  ))}
+                  <Button onClick={() => add({})} style={{ marginTop: 8 }}>Добавить ещё один адрес разгрузки</Button>
+                </>
+              )}
+            </Form.List>
+          </Space>
+          <Divider orientation="left" orientationMargin={0}><span style={{ color: theme === 'dark' ? '#fff' : undefined }}>Данные по заявке</span></Divider>
+          <Space size={16} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            <Form.Item name="company" label="Компания по заявке" rules={[{ required: true, message: 'Укажите компанию по заявке' }]}>
+              <Input style={{ width: 200 }} />
+            </Form.Item>
+            <Form.Item name="clientName" label="Имя" rules={[{ required: true, message: 'Укажите имя' }]}> 
+              <Input style={{ width: 160 }} />
+            </Form.Item>
+            <Form.Item name="phone" label="Телефон" normalize={v => (v ? String(v).replace(/\D/g,'') : v)}>
+              <Input style={{ width: 160 }} />
+            </Form.Item>
+            <Form.Item name="email" label="Email">
+              <Input style={{ width: 220 }} />
+            </Form.Item>
+            <Form.Item name="comment" label="Комментарий">
+              <Input.TextArea style={{ width: 320 }} rows={1} />
+            </Form.Item>
+            <Form.Item name="weight" label="Вес">
+              <InputNumber min={0} step={0.1} style={{ width: 120 }} />
+            </Form.Item>
+            <Form.Item name="amount" label="Сумма">
+              <InputNumber min={0} style={{ width: 140 }} />
+            </Form.Item>
+            <Form.Item name="driverId" label="Водитель">
+              <Select allowClear placeholder="Не назначать" style={{ width: 220 }}>
+                {drivers.map(d => (
+                  <Option key={d.id} value={d.id}>{d.full_name || d.username}</Option>
+                ))}
+              </Select>
+            </Form.Item>
+            <Form.Item>
+              <Button type="primary" htmlType="submit">Создать</Button>
+            </Form.Item>
+          </Space>
+        </Form>
+      </Modal>
 
       <Card title="Заявки" style={{ width: '100%' }}>
         <div style={{ marginBottom: 12 }}>
@@ -670,7 +718,9 @@ const allStatuses = ['new','assigned','in_progress','unloaded','awaiting_payment
                   <p><b>Адрес разгрузки:</b> {unloadParsed.address ? <button onClick={() => openMap(unloadParsed.address)} style={{ padding: 0, border: 'none', background: 'none', color: '#1677ff', cursor: 'pointer' }}>{unloadParsed.address}</button> : '—'}</p>
                   <p><b>Компания на разгрузке:</b> {unloadParsed.company || '—'}</p>
                   <p><b>Телефон на разгрузке:</b> {unloadParsed.phone ? <button onClick={() => copy(unloadParsed.phone, 'Номер скопирован')} style={{ padding: 0, border: 'none', background: 'none', color: '#1677ff', cursor: 'pointer' }}>{unloadParsed.phone}</button> : 'нет'}</p>
-                  <p><b>Email:</b> {details.email ? <button onClick={() => copy(details.email, 'Email скопирован')} style={{ padding: 0, border: 'none', background: 'none', color: '#1677ff', cursor: 'pointer' }}>{details.email}</button> : '—'}</p>
+                  {!isDriver && (
+                    <p><b>Email:</b> {details.email ? <button onClick={() => copy(details.email, 'Email скопирован')} style={{ padding: 0, border: 'none', background: 'none', color: '#1677ff', cursor: 'pointer' }}>{details.email}</button> : '—'}</p>
+                  )}
                   {/* Компания по заявке / Имя / Телефон / Email скрыты по требованию */}
                   <p><b>Комментарий:</b> {(() => {
                     const commentLine = lines.find(l => l.startsWith('Комментарий:')) || '';
@@ -686,9 +736,11 @@ const allStatuses = ['new','assigned','in_progress','unloaded','awaiting_payment
             })()}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, gap: 12 }}>
               <div style={{ flex: 1 }} />
-              <div>
-                <Button onClick={() => { setEditVisible(true); editForm.setFieldsValue(parseDetailsToFields(details)); }}>Редактировать</Button>
-              </div>
+              {!isDriver && (
+                <div>
+                  <Button onClick={() => { setEditVisible(true); editForm.setFieldsValue(parseDetailsToFields(details)); }}>Редактировать</Button>
+                </div>
+              )}
             </div>
             <div className="map-center-wrap" style={{ height: 260, borderRadius: 8, overflow: 'hidden', marginTop: 8 }}>
               <div ref={routeMapRef} style={{ width: '100%', height: '100%' }} />
