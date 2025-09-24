@@ -239,7 +239,7 @@ router.post('/:id/assign-driver', requireAdmin, async (req, res) => {
     // Обновляем заявку
     const result = await pool.query(
       `UPDATE orders 
-       SET driver_id = $1, updated_at = CURRENT_TIMESTAMP
+       SET driver_id = $1, status = 'assigned', updated_at = CURRENT_TIMESTAMP
        WHERE id = $2
        RETURNING *`,
       [driverId, id]
@@ -299,7 +299,7 @@ router.patch('/:id/status', async (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
 
-    const allowedStatuses = ['new', 'assigned', 'in_progress', 'unloaded', 'completed', 'cancelled'];
+    const allowedStatuses = ['new', 'assigned', 'in_progress', 'unloaded', 'completed', 'cancelled', 'awaiting_payment', 'send_originals'];
     
     if (!allowedStatuses.includes(status)) {
       return res.status(400).json({ 
@@ -308,18 +308,31 @@ router.patch('/:id/status', async (req, res) => {
     }
 
     // Проверяем права на изменение статуса
+    let currentOrder;
     if (req.user.role !== 'admin') {
       const orderCheck = await pool.query(
-        'SELECT driver_id FROM orders WHERE id = $1',
+        'SELECT driver_id, status FROM orders WHERE id = $1',
         [id]
       );
 
       if (orderCheck.rows.length === 0) {
         return res.status(404).json({ error: 'Заявка не найдена' });
       }
+      currentOrder = orderCheck.rows[0];
 
-      if (orderCheck.rows[0].driver_id !== req.user.userId) {
+      if (currentOrder.driver_id !== req.user.userId) {
         return res.status(403).json({ error: 'Нет прав на изменение статуса этой заявки' });
+      }
+
+      // Запрет смены если уже выполнена
+      if (String(currentOrder.status) === 'completed') {
+        return res.status(400).json({ error: 'Статус выполнена. Изменение запрещено.' });
+      }
+
+      // Ограничение допустимых статусов для водителя
+      const driverAllowed = ['in_progress', 'unloaded'];
+      if (!driverAllowed.includes(status)) {
+        return res.status(400).json({ error: `Водителю доступны только статусы: ${driverAllowed.join(', ')}` });
       }
     }
 
@@ -389,6 +402,31 @@ router.patch('/:id/status', async (req, res) => {
       newStatus: status,
       oldStatus: result.rows[0].status
     }, req.ip);
+
+    // Уведомление администраторов, если статус сменил водитель
+    try {
+      if (req.user.role === 'driver') {
+        const admins = await pool.query("SELECT id FROM users WHERE role = 'admin' AND is_active = true");
+        const adminIds = admins.rows.map(r => r.id);
+        for (const adminId of adminIds) {
+          await fetch(`https://web-production-7cfec.up.railway.app/api/notifications/send`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${req.headers.authorization?.replace('Bearer ', '')}`
+            },
+            body: JSON.stringify({
+              title: 'Статус заявки изменён',
+              body: `Водитель изменил статус заявки #${id} на ${status}`,
+              type: 'web_user',
+              recipientId: adminId
+            })
+          }).catch(()=>{});
+        }
+      }
+    } catch (notifyErr) {
+      console.error('❌ Ошибка при создании веб-уведомлений администраторам:', notifyErr);
+    }
 
     res.json({
       success: true,

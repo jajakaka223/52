@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dayjs from 'dayjs';
-import { Card, Typography, Table, Button, Space, Tag, Form, Input, DatePicker, InputNumber, Select, message, Modal, Popconfirm, Checkbox, Divider } from 'antd';
+import { Card, Typography, Table, Button, Space, Tag, Form, Input, DatePicker, InputNumber, Select, message, Modal, Popconfirm, Checkbox } from 'antd';
 import { DeleteOutlined } from '@ant-design/icons';
 import api from '../config/http';
 
@@ -12,6 +12,8 @@ const statusToColor = {
   assigned: 'processing',
   in_progress: 'warning',
   unloaded: 'success',
+  awaiting_payment: 'purple',
+  send_originals: 'cyan',
   completed: 'success',
   cancelled: 'error'
 };
@@ -21,6 +23,8 @@ const statusToRu = {
   assigned: 'Назначена',
   in_progress: 'В пути',
   unloaded: 'Разгрузился',
+  awaiting_payment: 'Ожидаем оплаты',
+  send_originals: 'Отправить оригиналы',
   completed: 'Выполнена',
   cancelled: 'Отменена'
 };
@@ -49,7 +53,6 @@ const Orders = ({ theme, userPermissions, user }) => {
   const [createForm] = Form.useForm();
   const [assignModal, setAssignModal] = useState({ open: false, orderId: null });
   const [statusModal, setStatusModal] = useState({ open: false, orderId: null });
-  const [createModalOpen, setCreateModalOpen] = useState(false);
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
@@ -106,26 +109,18 @@ const Orders = ({ theme, userPermissions, user }) => {
       // Собираем человеко-читаемое направление с деталями
       const from = values.from || '';
       const to = values.to || '';
-      const loads = Array.isArray(values.loads) && values.loads.length
-        ? values.loads.map(l => ({ address: l?.address || '', company: l?.company || '', phone: l?.phone || 'нет' }))
-        : [{ address: values.loadAddress || '', company: values.loadCompany || '', phone: values.loadPhone || 'нет' }];
-      const unloads = Array.isArray(values.unloads) && values.unloads.length
-        ? values.unloads.map(u => ({ address: u?.address || '', company: u?.company || '', phone: u?.phone || 'нет' }))
-        : [{ address: values.unloadAddress || '', company: values.unloadCompany || '', phone: values.unloadPhone || 'нет' }];
+      const loadAddress = values.loadAddress || '';
+      const loadCompany = values.loadCompany || '';
+      const loadPhone = values.loadPhone || 'нет';
+      const unloadAddress = values.unloadAddress || '';
+      const unloadCompany = values.unloadCompany || '';
+      const unloadPhone = values.unloadPhone || 'нет';
       const comment = values.comment || '';
 
       // Явно прикрепим адреса к городам Откуда/Куда
-      const withFrom = (addr) => `${from ? from + ', ' : ''}${addr}`.trim();
-      const withTo = (addr) => `${to ? to + ', ' : ''}${addr}`.trim();
-      const loadLines = loads.filter(Boolean).map((l, idx) => {
-        const label = idx === 0 ? 'Погрузка' : `Погрузка ${idx + 1}`;
-        return `${label}: ${withFrom(l.address)} (${l.company}, ${l.phone})`;
-      }).join('\n');
-      const unloadLines = unloads.filter(Boolean).map((u, idx) => {
-        const label = idx === 0 ? 'Разгрузка' : `Разгрузка ${idx + 1}`;
-        return `${label}: ${withTo(u.address)} (${u.company}, ${u.phone})`;
-      }).join('\n');
-      const directionDetails = `${from} → ${to}\n${loadLines}\n${unloadLines}${comment ? `\nКомментарий: ${comment}` : ''}`;
+      const loadFull = `${from ? from + ', ' : ''}${loadAddress}`.trim();
+      const unloadFull = `${to ? to + ', ' : ''}${unloadAddress}`.trim();
+      const directionDetails = `${from} → ${to}\nПогрузка: ${loadFull} (${loadCompany}, ${loadPhone})\nРазгрузка: ${unloadFull} (${unloadCompany}, ${unloadPhone})${comment ? `\nКомментарий: ${comment}` : ''}`;
 
       const payload = {
         date: values.date?.format('YYYY-MM-DD'),
@@ -210,6 +205,12 @@ const Orders = ({ theme, userPermissions, user }) => {
 
   const handleChangeStatus = async (status) => {
     try {
+      // Запрет изменения статуса, если заявка уже выполнена
+      const current = orders.find(o => o.id === statusModal.orderId);
+      if (current && current.status === 'completed') {
+        message.warning('Статус "Выполнена". Изменение запрещено.');
+        return;
+      }
       await api.patch(`/api/orders/${statusModal.orderId}/status`, { status }, { headers });
       message.success('Статус обновлён');
       
@@ -300,8 +301,8 @@ const Orders = ({ theme, userPermissions, user }) => {
     const lines = String(order.direction || '').split('\n');
     const first = lines[0] || '';
     const [from, to] = first.split(' → ');
-    const loadLines = lines.filter(l => l.startsWith('Погрузка'));
-    const unloadLines = lines.filter(l => l.startsWith('Разгрузка'));
+    const loadLine = lines.find(l => l.startsWith('Погрузка:')) || '';
+    const unloadLine = lines.find(l => l.startsWith('Разгрузка:')) || '';
     const extractPart = (line) => {
       const idx = line.indexOf(':');
       return idx >= 0 ? line.slice(idx + 1).trim() : line;
@@ -317,10 +318,8 @@ const Orders = ({ theme, userPermissions, user }) => {
     const commentLine = lines.find(l => l.startsWith('Комментарий:')) || '';
     const commentIdx = commentLine.indexOf(':');
     const comment = commentIdx >= 0 ? commentLine.slice(commentIdx + 1).trim() : '';
-    const loadParsedArr = loadLines.map(l => splitCompanyPhone(extractPart(l)));
-    const loadParsed = loadParsedArr[0] || { address: '', company: '', phone: '' };
-    const unloadParsedArr = unloadLines.map(l => splitCompanyPhone(extractPart(l)));
-    const unloadParsed = unloadParsedArr[0] || { address: '', company: '', phone: '' };
+    const loadParsed = splitCompanyPhone(extractPart(loadLine));
+    const unloadParsed = splitCompanyPhone(extractPart(unloadLine));
     const escapeReg = (s) => String(s || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const stripCityPrefix = (addr, city) => {
       let result = String(addr || '').trim();
@@ -336,21 +335,9 @@ const Orders = ({ theme, userPermissions, user }) => {
       loadAddress: stripCityPrefix(loadParsed.address, from),
       loadCompany: loadParsed.company || '',
       loadPhone: loadParsed.phone || '',
-      loadAddress2: loadParsedArr[1] ? stripCityPrefix(loadParsedArr[1].address, from) : '',
-      loadCompany2: loadParsedArr[1]?.company || '',
-      loadPhone2: loadParsedArr[1]?.phone || '',
-      loadAddress3: loadParsedArr[2] ? stripCityPrefix(loadParsedArr[2].address, from) : '',
-      loadCompany3: loadParsedArr[2]?.company || '',
-      loadPhone3: loadParsedArr[2]?.phone || '',
       unloadAddress: stripCityPrefix(unloadParsed.address, to),
       unloadCompany: unloadParsed.company || '',
       unloadPhone: unloadParsed.phone || '',
-      unloadAddress2: unloadParsedArr[1] ? stripCityPrefix(unloadParsedArr[1].address, to) : '',
-      unloadCompany2: unloadParsedArr[1]?.company || '',
-      unloadPhone2: unloadParsedArr[1]?.phone || '',
-      unloadAddress3: unloadParsedArr[2] ? stripCityPrefix(unloadParsedArr[2].address, to) : '',
-      unloadCompany3: unloadParsedArr[2]?.company || '',
-      unloadPhone3: unloadParsedArr[2]?.phone || '',
       comment,
       company: order.company || '',
       clientName: order.client_name || '',
@@ -362,7 +349,6 @@ const Orders = ({ theme, userPermissions, user }) => {
     };
   }, []);
 
-  const isDriver = (user?.role || '').toLowerCase() === 'driver';
   const columns = [
     { 
       title: 'Номер', dataIndex: 'id', width: 90,
@@ -398,37 +384,25 @@ const Orders = ({ theme, userPermissions, user }) => {
     },
     { 
       title: 'Компания по заявке', dataIndex: 'company',
-      render: (v) => {
-        if (isDriver) return '—';
-        return <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'inline-block', maxWidth: 220 }}>{v}</span>;
-      },
+      render: (v) => <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'inline-block', maxWidth: 220 }}>{v}</span>,
       sorter: (a, b) => String(a.company||'').localeCompare(String(b.company||''), 'ru'),
       sortDirections: ['descend','ascend']
     },
     { 
       title: 'Email', dataIndex: 'email', 
-      render: (e) => {
-        if (isDriver) return '—';
-        return e ? <button onClick={() => { navigator.clipboard.writeText(String(e)); message.success('Email скопирован'); }} style={{ padding: 0, border: 'none', background: 'none', color: '#1677ff', cursor: 'pointer' }}>{e}</button> : '—';
-      },
+      render: (e) => e ? <button onClick={() => { navigator.clipboard.writeText(String(e)); message.success('Email скопирован'); }} style={{ padding: 0, border: 'none', background: 'none', color: '#1677ff', cursor: 'pointer' }}>{e}</button> : '—',
       sorter: (a, b) => String(a.email||'').localeCompare(String(b.email||''), 'ru'),
       sortDirections: ['descend','ascend']
     },
     { 
       title: 'Имя', dataIndex: 'client_name',
-      render: (text) => {
-        if (isDriver) return '—';
-        return text ? text.split(' ')[0] : '-';
-      },
+      render: (text) => text ? text.split(' ')[0] : '-',
       sorter: (a, b) => String(a.client_name||'').localeCompare(String(b.client_name||''), 'ru'),
       sortDirections: ['descend','ascend']
     },
     { 
       title: 'Телефон', dataIndex: 'phone', 
-      render: (p) => {
-        if (isDriver) return '—';
-        return p ? <button onClick={() => { navigator.clipboard.writeText(String(p)); message.success('Номер скопирован'); }} style={{ padding: 0, border: 'none', background: 'none', color: '#1677ff', cursor: 'pointer' }}>{p}</button> : '—';
-      },
+      render: (p) => p ? <button onClick={() => { navigator.clipboard.writeText(String(p)); message.success('Номер скопирован'); }} style={{ padding: 0, border: 'none', background: 'none', color: '#1677ff', cursor: 'pointer' }}>{p}</button> : '—',
       sorter: (a, b) => String(a.phone||'').localeCompare(String(b.phone||''), 'ru'),
       sortDirections: ['descend','ascend']
     },
@@ -469,12 +443,12 @@ const Orders = ({ theme, userPermissions, user }) => {
       title: <div style={{ textAlign: 'center' }}>Действия</div>,
       render: (_, r) => (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, auto)', gap: 8 }}>
-          {userPermissions?.can_assign_drivers && !isDriver && (
+          {userPermissions?.can_assign_drivers && (
             <Button size="small" onClick={() => openAssign(r.id)}>Назначить</Button>
           )}
           <Button size="small" onClick={() => openStatus(r.id)}>Статус</Button>
           <Button size="small" onClick={() => setDetails(r)}>Подробнее</Button>
-          {userPermissions?.can_delete_any && !isDriver && (
+          {userPermissions?.can_delete_any && (
             <Popconfirm title="Удалить заявку?" okText="Удалить" cancelText="Отмена" onConfirm={async () => {
               try {
                 await api.delete(`/api/orders/${r.id}`, { headers });
@@ -493,7 +467,7 @@ const Orders = ({ theme, userPermissions, user }) => {
   ];
 
   // Фильтр по статусам
-  const allStatuses = ['new','assigned','in_progress','unloaded','completed','cancelled'];
+const allStatuses = ['new','assigned','in_progress','unloaded','awaiting_payment','send_originals','completed','cancelled'];
   const [visibleStatuses, setVisibleStatuses] = useState(allStatuses);
   const filteredOrders = useMemo(() => (
     Array.isArray(orders) ? orders.filter(o => visibleStatuses.includes(o.status || 'new')) : []
@@ -547,19 +521,9 @@ const Orders = ({ theme, userPermissions, user }) => {
       `}</style>
       <Title level={2}>Управление заявками</Title>
 
-      {userPermissions?.can_create_orders && !isDriver && (
-        <Card style={{ marginBottom: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start' }}>
-            <div style={{ fontSize: 14, color: theme === 'dark' ? '#fff' : undefined }}>
-              Для создания заявки нажмите кнопку:
-            </div>
-            <Button type="primary" onClick={() => setCreateModalOpen(true)} style={{ marginLeft: 12 }}>Создать</Button>
-          </div>
-        </Card>
-      )}
-
-      <Modal title="Создать заявку" open={createModalOpen} onCancel={() => setCreateModalOpen(false)} footer={null} destroyOnClose>
-        <Form layout="vertical" form={createForm} onFinish={async (vals)=>{ await handleCreate(vals); setCreateModalOpen(false); }}>
+      {userPermissions?.can_create_orders && (
+        <Card style={{ marginBottom: 16 }} title="Создать заявку">
+          <Form layout="vertical" form={createForm} onFinish={handleCreate}>
             <Space size={16} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end' }}>
               <Form.Item name="date" label="Дата" rules={[{ required: true, message: 'Укажите дату' }]}> 
                 <DatePicker format="DD.MM.YYYY" placeholder="Выбрать дату" />
@@ -570,68 +534,31 @@ const Orders = ({ theme, userPermissions, user }) => {
               <Form.Item name="to" label="Куда" rules={[{ required: true, message: 'Укажите точку назначения' }]}>
                 <Input style={{ width: 200 }} />
               </Form.Item>
-            </Space>
-            <Divider orientation="left" orientationMargin={0}><span style={{ color: theme === 'dark' ? '#fff' : undefined }}>Погрузка</span></Divider>
-            <Space direction="vertical" style={{ width: '100%' }}>
-              <Form.List name="loads" initialValue={[{}]}>
-                {(fields, { add, remove }) => (
-                  <>
-                    {fields.map((field, idx) => (
-                      <Space key={field.key} size={16} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: 8 }}>
-                        <Form.Item {...field} name={[field.name, 'address']} fieldKey={[field.fieldKey, 'address']} label={idx === 0 ? 'Адрес загрузки' : `Адрес загрузки ${idx+1}` } rules={[{ required: true, message: 'Укажите адрес загрузки' }]}>
-                          <Input style={{ width: 240 }} />
-                        </Form.Item>
-                        <Form.Item {...field} name={[field.name, 'company']} fieldKey={[field.fieldKey, 'company']} label={idx === 0 ? 'Компания на загрузке' : `Компания на загрузке ${idx+1}` } rules={[{ required: true, message: 'Укажите компанию на загрузке' }]}>
-                          <Input style={{ width: 220 }} />
-                        </Form.Item>
-                        <Form.Item {...field} name={[field.name, 'phone']} fieldKey={[field.fieldKey, 'phone']} label={idx === 0 ? 'Телефон загрузки' : `Телефон загрузки ${idx+1}` } normalize={v => (v ? String(v).replace(/\D/g,'') : v)}>
-                          <Input style={{ width: 160 }} />
-                        </Form.Item>
-                        {fields.length > 1 && idx > 0 && (
-                          <Button danger onClick={() => remove(field.name)} style={{ marginLeft: 8, marginTop: 4 }}>Удалить</Button>
-                        )}
-                      </Space>
-                    ))}
-                    <Button onClick={() => add({})} style={{ marginTop: 8 }}>Добавить ещё один адрес загрузки</Button>
-                  </>
-                )}
-              </Form.List>
-            </Space>
-            <Divider orientation="left" orientationMargin={0}><span style={{ color: theme === 'dark' ? '#fff' : undefined }}>Разгрузка</span></Divider>
-            <Space direction="vertical" style={{ width: '100%' }}>
-              <Form.List name="unloads" initialValue={[{}]}>
-                {(fields, { add, remove }) => (
-                  <>
-                    {fields.map((field, idx) => (
-                      <Space key={field.key} size={16} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: 8 }}>
-                        <Form.Item {...field} name={[field.name, 'address']} fieldKey={[field.fieldKey, 'address']} label={idx === 0 ? 'Адрес разгрузки' : `Адрес разгрузки ${idx+1}` } rules={[{ required: true, message: 'Укажите адрес разгрузки' }]}>
-                          <Input style={{ width: 240 }} />
-                        </Form.Item>
-                        <Form.Item {...field} name={[field.name, 'company']} fieldKey={[field.fieldKey, 'company']} label={idx === 0 ? 'Компания на разгрузке' : `Компания на разгрузке ${idx+1}` } rules={[{ required: true, message: 'Укажите компанию на разгрузке' }]}>
-                          <Input style={{ width: 220 }} />
-                        </Form.Item>
-                        <Form.Item {...field} name={[field.name, 'phone']} fieldKey={[field.fieldKey, 'phone']} label={idx === 0 ? 'Телефон разгрузки' : `Телефон разгрузки ${idx+1}` } normalize={v => (v ? String(v).replace(/\D/g,'') : v)}>
-                          <Input style={{ width: 160 }} />
-                        </Form.Item>
-                        {fields.length > 1 && idx > 0 && (
-                          <Button danger onClick={() => remove(field.name)} style={{ marginLeft: 8, marginTop: 4 }}>Удалить</Button>
-                        )}
-                      </Space>
-                    ))}
-                    <Button onClick={() => add({})} style={{ marginTop: 8 }}>Добавить ещё один адрес разгрузки</Button>
-                  </>
-                )}
-              </Form.List>
-            </Space>
-            <Divider orientation="left" orientationMargin={0}><span style={{ color: theme === 'dark' ? '#fff' : undefined }}>Данные по заявке</span></Divider>
-            <Space size={16} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+              <Form.Item name="loadAddress" label="Адрес загрузки" rules={[{ required: true, message: 'Укажите адрес загрузки' }]}>
+                <Input style={{ width: 240 }} />
+              </Form.Item>
+              <Form.Item name="loadCompany" label="Компания на загрузке" rules={[{ required: true, message: 'Укажите компанию на загрузке' }]}>
+                <Input style={{ width: 220 }} />
+              </Form.Item>
+              <Form.Item name="loadPhone" label="Телефон загрузки">
+                <Input style={{ width: 160 }} />
+              </Form.Item>
+              <Form.Item name="unloadAddress" label="Адрес разгрузки" rules={[{ required: true, message: 'Укажите адрес разгрузки' }]}>
+                <Input style={{ width: 240 }} />
+              </Form.Item>
+              <Form.Item name="unloadCompany" label="Компания на разгрузке" rules={[{ required: true, message: 'Укажите компанию на разгрузке' }]}>
+                <Input style={{ width: 220 }} />
+              </Form.Item>
+              <Form.Item name="unloadPhone" label="Телефон разгрузки">
+                <Input style={{ width: 160 }} />
+              </Form.Item>
               <Form.Item name="company" label="Компания по заявке" rules={[{ required: true, message: 'Укажите компанию по заявке' }]}>
                 <Input style={{ width: 200 }} />
               </Form.Item>
               <Form.Item name="clientName" label="Имя" rules={[{ required: true, message: 'Укажите имя' }]}> 
                 <Input style={{ width: 160 }} />
               </Form.Item>
-              <Form.Item name="phone" label="Телефон" normalize={v => (v ? String(v).replace(/\D/g,'') : v)}>
+              <Form.Item name="phone" label="Телефон">
                 <Input style={{ width: 160 }} />
               </Form.Item>
               <Form.Item name="email" label="Email">
@@ -658,7 +585,8 @@ const Orders = ({ theme, userPermissions, user }) => {
               </Form.Item>
             </Space>
           </Form>
-      </Modal>
+        </Card>
+      )}
 
       <Card title="Заявки" style={{ width: '100%' }}>
         <div style={{ marginBottom: 12 }}>
@@ -712,8 +640,8 @@ const Orders = ({ theme, userPermissions, user }) => {
               const lines = String(details.direction || '').split('\n');
               const first = lines[0] || '';
               const [from, to] = first.split(' → ');
-              const loadLines = lines.filter(l => l.startsWith('Погрузка'));
-              const unloadLines = lines.filter(l => l.startsWith('Разгрузка'));
+              const loadLine = lines.find(l => l.startsWith('Погрузка:')) || '';
+              const unloadLine = lines.find(l => l.startsWith('Разгрузка:')) || '';
               const extractPart = (line) => {
                 const idx = line.indexOf(':');
                 return idx >= 0 ? line.slice(idx + 1).trim() : line;
@@ -726,31 +654,21 @@ const Orders = ({ theme, userPermissions, user }) => {
                 const phone = inside.split(',')[1]?.trim() || '';
                 return { address, company, phone };
               };
-              const loadParsedArr = loadLines.map(l => splitCompanyPhone(extractPart(l)));
-              const unloadParsedArr = unloadLines.map(l => splitCompanyPhone(extractPart(l)));
+              const loadParsed = splitCompanyPhone(extractPart(loadLine));
+              const unloadParsed = splitCompanyPhone(extractPart(unloadLine));
               const openMap = (addr) => window.open(`https://yandex.ru/maps/?text=${encodeURIComponent(addr)}`, '_blank');
               const copy = (text, msg) => { navigator.clipboard.writeText(String(text || '')); message.success(msg); };
               return (
                 <>
                   <p><b>Дата:</b> {details.date ? dayjs(details.date).format('DD.MM.YYYY') : '—'}</p>
                   <p><b>Направление:</b> {(from || to) ? `${from || '—'} → ${to || '—'}` : '—'}</p>
-                  {loadParsedArr.map((l, idx) => (
-                    <div key={`load-${idx}`}>
-                      <p><b>{idx === 0 ? 'Адрес загрузки' : `Адрес загрузки ${idx + 1}`}:</b> {l.address ? <button onClick={() => openMap(l.address)} style={{ padding: 0, border: 'none', background: 'none', color: '#1677ff', cursor: 'pointer' }}>{l.address}</button> : '—'}</p>
-                      <p><b>{idx === 0 ? 'Компания на загрузке' : `Компания на загрузке ${idx + 1}`}:</b> {l.company || '—'}</p>
-                      <p><b>{idx === 0 ? 'Телефон на загрузке' : `Телефон на загрузке ${idx + 1}`}:</b> {l.phone ? <button onClick={() => copy(l.phone, 'Номер скопирован')} style={{ padding: 0, border: 'none', background: 'none', color: '#1677ff', cursor: 'pointer' }}>{l.phone}</button> : 'нет'}</p>
-                    </div>
-                  ))}
-                  {unloadParsedArr.map((u, idx) => (
-                    <div key={idx}>
-                      <p><b>{idx === 0 ? 'Адрес разгрузки' : `Адрес разгрузки ${idx + 1}`}:</b> {u.address ? <button onClick={() => openMap(u.address)} style={{ padding: 0, border: 'none', background: 'none', color: '#1677ff', cursor: 'pointer' }}>{u.address}</button> : '—'}</p>
-                      <p><b>{idx === 0 ? 'Компания на разгрузке' : `Компания на разгрузке ${idx + 1}`}:</b> {u.company || '—'}</p>
-                      <p><b>{idx === 0 ? 'Телефон на разгрузке' : `Телефон на разгрузке ${idx + 1}`}:</b> {u.phone ? <button onClick={() => copy(u.phone, 'Номер скопирован')} style={{ padding: 0, border: 'none', background: 'none', color: '#1677ff', cursor: 'pointer' }}>{u.phone}</button> : 'нет'}</p>
-                    </div>
-                  ))}
-                  {!isDriver && (
-                    <p><b>Email:</b> {details.email ? <button onClick={() => copy(details.email, 'Email скопирован')} style={{ padding: 0, border: 'none', background: 'none', color: '#1677ff', cursor: 'pointer' }}>{details.email}</button> : '—'}</p>
-                  )}
+                  <p><b>Адрес загрузки:</b> {loadParsed.address ? <button onClick={() => openMap(loadParsed.address)} style={{ padding: 0, border: 'none', background: 'none', color: '#1677ff', cursor: 'pointer' }}>{loadParsed.address}</button> : '—'}</p>
+                  <p><b>Компания на загрузке:</b> {loadParsed.company || '—'}</p>
+                  <p><b>Телефон на загрузке:</b> {loadParsed.phone ? <button onClick={() => copy(loadParsed.phone, 'Номер скопирован')} style={{ padding: 0, border: 'none', background: 'none', color: '#1677ff', cursor: 'pointer' }}>{loadParsed.phone}</button> : 'нет'}</p>
+                  <p><b>Адрес разгрузки:</b> {unloadParsed.address ? <button onClick={() => openMap(unloadParsed.address)} style={{ padding: 0, border: 'none', background: 'none', color: '#1677ff', cursor: 'pointer' }}>{unloadParsed.address}</button> : '—'}</p>
+                  <p><b>Компания на разгрузке:</b> {unloadParsed.company || '—'}</p>
+                  <p><b>Телефон на разгрузке:</b> {unloadParsed.phone ? <button onClick={() => copy(unloadParsed.phone, 'Номер скопирован')} style={{ padding: 0, border: 'none', background: 'none', color: '#1677ff', cursor: 'pointer' }}>{unloadParsed.phone}</button> : 'нет'}</p>
+                  <p><b>Email:</b> {details.email ? <button onClick={() => copy(details.email, 'Email скопирован')} style={{ padding: 0, border: 'none', background: 'none', color: '#1677ff', cursor: 'pointer' }}>{details.email}</button> : '—'}</p>
                   {/* Компания по заявке / Имя / Телефон / Email скрыты по требованию */}
                   <p><b>Комментарий:</b> {(() => {
                     const commentLine = lines.find(l => l.startsWith('Комментарий:')) || '';
@@ -766,11 +684,9 @@ const Orders = ({ theme, userPermissions, user }) => {
             })()}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, gap: 12 }}>
               <div style={{ flex: 1 }} />
-              {!isDriver && (
-                <div>
-                  <Button onClick={() => { setEditVisible(true); editForm.setFieldsValue(parseDetailsToFields(details)); }}>Редактировать</Button>
-                </div>
-              )}
+              <div>
+                <Button onClick={() => { setEditVisible(true); editForm.setFieldsValue(parseDetailsToFields(details)); }}>Редактировать</Button>
+              </div>
             </div>
             <div className="map-center-wrap" style={{ height: 260, borderRadius: 8, overflow: 'hidden', marginTop: 8 }}>
               <div ref={routeMapRef} style={{ width: '100%', height: '100%' }} />
@@ -791,24 +707,16 @@ const Orders = ({ theme, userPermissions, user }) => {
             const loadAddress = vals.loadAddress || '';
             const loadCompany = vals.loadCompany || '';
             const loadPhone = vals.loadPhone || 'нет';
-            const unload1 = { address: vals.unloadAddress || '', company: vals.unloadCompany || '', phone: vals.unloadPhone || 'нет' };
-            const unload2 = (vals.unloadAddress2 || vals.unloadCompany2 || vals.unloadPhone2)
-              ? { address: vals.unloadAddress2 || '', company: vals.unloadCompany2 || '', phone: vals.unloadPhone2 || 'нет' }
-              : null;
-            const unload3 = (vals.unloadAddress3 || vals.unloadCompany3 || vals.unloadPhone3)
-              ? { address: vals.unloadAddress3 || '', company: vals.unloadCompany3 || '', phone: vals.unloadPhone3 || 'нет' }
-              : null;
+            const unloadAddress = vals.unloadAddress || '';
+            const unloadCompany = vals.unloadCompany || '';
+            const unloadPhone = vals.unloadPhone || 'нет';
             const comment = vals.comment || '';
 
             const startsWithCity = (city, addr) => city && new RegExp(`^${escape(city)}\\s*,`, 'i').test(String(addr));
             function escape(s){ return String(s||'').replace(/[.*+?^${}()|[\]\\]/g,'\\$&'); }
             const loadFull = startsWithCity(from, loadAddress) ? loadAddress : `${from ? from + ', ' : ''}${loadAddress}`.trim();
-            const toPref = (addr) => (startsWithCity(to, addr) ? addr : `${to ? to + ', ' : ''}${addr}`).trim();
-            const unloadLines = [unload1, unload2, unload3].filter(Boolean).map((u, idx) => {
-              const label = idx === 0 ? 'Разгрузка' : `Разгрузка ${idx + 1}`;
-              return `${label}: ${toPref(u.address)} (${u.company}, ${u.phone})`;
-            }).join('\n');
-            const directionDetails = `${from} → ${to}\nПогрузка: ${loadFull} (${loadCompany}, ${loadPhone})\n${unloadLines}${comment ? `\nКомментарий: ${comment}` : ''}`;
+            const unloadFull = startsWithCity(to, unloadAddress) ? unloadAddress : `${to ? to + ', ' : ''}${unloadAddress}`.trim();
+            const directionDetails = `${from} → ${to}\nПогрузка: ${loadFull} (${loadCompany}, ${loadPhone})\nРазгрузка: ${unloadFull} (${unloadCompany}, ${unloadPhone})${comment ? `\nКомментарий: ${comment}` : ''}`;
 
             const payload = {
               date: vals.date ? dayjs(vals.date).format('YYYY-MM-DD') : null,
@@ -848,26 +756,7 @@ const Orders = ({ theme, userPermissions, user }) => {
             <Form.Item name="loadCompany" label="Компания на загрузке" rules={[{ required: true, message: 'Укажите компанию на загрузке' }]}>
               <Input style={{ width: 220 }} />
             </Form.Item>
-            <Form.Item name="loadPhone" label="Телефон загрузки" normalize={v => (v ? String(v).replace(/\D/g,'') : v)}>
-              <Input style={{ width: 160 }} />
-            </Form.Item>
-            {/* Доп. погрузки при редактировании */}
-            <Form.Item name="loadAddress2" label="Адрес загрузки 2">
-              <Input style={{ width: 240 }} />
-            </Form.Item>
-            <Form.Item name="loadCompany2" label="Компания на загрузке 2">
-              <Input style={{ width: 220 }} />
-            </Form.Item>
-            <Form.Item name="loadPhone2" label="Телефон загрузки 2" normalize={v => (v ? String(v).replace(/\D/g,'') : v)}>
-              <Input style={{ width: 160 }} />
-            </Form.Item>
-            <Form.Item name="loadAddress3" label="Адрес загрузки 3">
-              <Input style={{ width: 240 }} />
-            </Form.Item>
-            <Form.Item name="loadCompany3" label="Компания на загрузке 3">
-              <Input style={{ width: 220 }} />
-            </Form.Item>
-            <Form.Item name="loadPhone3" label="Телефон загрузки 3" normalize={v => (v ? String(v).replace(/\D/g,'') : v)}>
+            <Form.Item name="loadPhone" label="Телефон загрузки">
               <Input style={{ width: 160 }} />
             </Form.Item>
             <Form.Item name="unloadAddress" label="Адрес разгрузки" rules={[{ required: true, message: 'Укажите адрес разгрузки' }]}>
@@ -946,21 +835,14 @@ const Orders = ({ theme, userPermissions, user }) => {
           onChange={handleChangeStatus}
           key={statusModal.orderId || 'status'}
         >
-          {isDriver ? (
-            <>
-              <Option value="in_progress">В пути</Option>
-              <Option value="unloaded">Разгрузился</Option>
-            </>
-          ) : (
-            <>
-              <Option value="new">Новая</Option>
-              <Option value="assigned">Назначена</Option>
-              <Option value="in_progress">В пути</Option>
-              <Option value="unloaded">Разгрузился</Option>
-              <Option value="completed">Выполнена</Option>
-              <Option value="cancelled">Отменена</Option>
-            </>
-          )}
+          <Option value="new">Новая</Option>
+          <Option value="assigned">Назначена</Option>
+          <Option value="in_progress">В пути</Option>
+          <Option value="unloaded">Разгрузился</Option>
+          <Option value="awaiting_payment">Ожидаем оплаты</Option>
+          <Option value="send_originals">Отправить оригиналы</Option>
+          <Option value="completed">Выполнена</Option>
+          <Option value="cancelled">Отменена</Option>
         </Select>
       </Modal>
     </div>
