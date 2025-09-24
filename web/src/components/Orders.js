@@ -470,8 +470,10 @@ const Orders = ({ theme, userPermissions, user }) => {
     }
   ];
 
-  // Фильтр по статусам
-const allStatuses = ['new','assigned','in_progress','unloaded','awaiting_payment','send_originals','completed','cancelled'];
+  // Фильтр по статусам (водителю показываем только допустимые)
+  const allStatuses = isDriver
+    ? ['in_progress','unloaded']
+    : ['new','assigned','in_progress','unloaded','awaiting_payment','send_originals','completed','cancelled'];
   const [visibleStatuses, setVisibleStatuses] = useState(allStatuses);
   const filteredOrders = useMemo(() => (
     Array.isArray(orders) ? orders.filter(o => visibleStatuses.includes(o.status || 'new')) : []
@@ -889,14 +891,23 @@ const allStatuses = ['new','assigned','in_progress','unloaded','awaiting_payment
           onChange={handleChangeStatus}
           key={statusModal.orderId || 'status'}
         >
-          <Option value="new">Новая</Option>
-          <Option value="assigned">Назначена</Option>
-          <Option value="in_progress">В пути</Option>
-          <Option value="unloaded">Разгрузился</Option>
-          <Option value="awaiting_payment">Ожидаем оплаты</Option>
-          <Option value="send_originals">Отправить оригиналы</Option>
-          <Option value="completed">Выполнена</Option>
-          <Option value="cancelled">Отменена</Option>
+          {isDriver ? (
+            <>
+              <Option value="in_progress">В пути</Option>
+              <Option value="unloaded">Разгрузился</Option>
+            </>
+          ) : (
+            <>
+              <Option value="new">Новая</Option>
+              <Option value="assigned">Назначена</Option>
+              <Option value="in_progress">В пути</Option>
+              <Option value="unloaded">Разгрузился</Option>
+              <Option value="awaiting_payment">Ожидаем оплаты</Option>
+              <Option value="send_originals">Отправить оригиналы</Option>
+              <Option value="completed">Выполнена</Option>
+              <Option value="cancelled">Отменена</Option>
+            </>
+          )}
         </Select>
       </Modal>
     </div>
