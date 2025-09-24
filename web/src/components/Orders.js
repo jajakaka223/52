@@ -11,9 +11,10 @@ const statusToColor = {
   new: 'default',
   assigned: 'processing',
   in_progress: 'warning',
-  unloaded: 'success',
-  awaiting_payment: 'purple',
-  send_originals: 'cyan',
+  // обновлённые цвета
+  unloaded: '#2f54eb', // Разгрузился — синий
+  awaiting_payment: '#fa8c16', // Ожидаем оплаты — оранжевый
+  send_originals: '#13c2c2', // Отправить оригиналы — циан
   completed: 'success',
   cancelled: 'error'
 };
@@ -421,7 +422,7 @@ const Orders = ({ theme, userPermissions, user }) => {
     { 
       title: 'Статус', dataIndex: 'status', 
       render: s => {
-        const preset = statusToColor[s] || 'default';
+        const presetOrHex = statusToColor[s] || 'default';
         const colorMap = { 
           default: theme === 'dark' ? '#434343' : '#d9d9d9', 
           processing: '#1890ff',
@@ -429,7 +430,8 @@ const Orders = ({ theme, userPermissions, user }) => {
           success: '#52c41a',
           error: '#ff4d4f'
         };
-        const bg = s === 'new' ? '#434343' : (colorMap[preset] || (theme === 'dark' ? '#434343' : '#d9d9d9'));
+        const resolved = String(presetOrHex).startsWith('#') ? presetOrHex : (colorMap[presetOrHex] || colorMap.default);
+        const bg = s === 'new' ? '#434343' : resolved;
         return (
           <Tag style={{ background: bg, color: '#fff', border: `1px solid ${bg}`, fontWeight: 500 }}>
             {statusToRu[s] || statusToRu['new']}
