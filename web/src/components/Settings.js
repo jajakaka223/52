@@ -163,6 +163,7 @@ const Settings = ({ user, userPermissions }) => {
         newPassword: values.newPassword
       }, { headers });
       message.success('Пароль изменён');
+      passwordForm.resetFields();
       setPwdUser(null);
     } catch (e) {
       message.error(e?.response?.data?.error || 'Не удалось изменить пароль');
@@ -377,8 +378,35 @@ const Settings = ({ user, userPermissions }) => {
 
       <Modal title="Изменить пароль" open={!!pwdUser} onCancel={() => setPwdUser(null)} footer={null} afterOpenChange={(open) => { if (open) passwordForm.resetFields(); }}>
         <Form layout="vertical" form={passwordForm} onFinish={handleChangePassword}>
-          <Form.Item name="newPassword" label="Новый пароль" rules={[{ required: true, min: 6 }]}> <Input.Password /> </Form.Item>
-          <Button type="primary" htmlType="submit">Изменить</Button>
+          <Form.Item 
+            name="newPassword" 
+            label="Новый пароль" 
+            rules={[
+              { required: true, message: 'Введите новый пароль' },
+              { min: 6, message: 'Пароль должен содержать минимум 6 символов' }
+            ]}
+          > 
+            <Input.Password placeholder="Введите новый пароль" /> 
+          </Form.Item>
+          <Form.Item
+            name="confirmPassword"
+            label="Подтвердите пароль"
+            dependencies={['newPassword']}
+            rules={[
+              { required: true, message: 'Подтвердите пароль' },
+              ({ getFieldValue }) => ({
+                validator(_, value) {
+                  if (!value || getFieldValue('newPassword') === value) {
+                    return Promise.resolve();
+                  }
+                  return Promise.reject(new Error('Пароли не совпадают'));
+                },
+              }),
+            ]}
+          >
+            <Input.Password placeholder="Подтвердите новый пароль" />
+          </Form.Item>
+          <Button type="primary" htmlType="submit" style={{ width: '100%' }}>Изменить пароль</Button>
         </Form>
       </Modal>
       <Modal title={`Права роли: ${rolePermissions?.role_key || ''}`} open={permModalOpen} onCancel={() => setPermModalOpen(false)} onOk={savePerms} okText="Сохранить">
