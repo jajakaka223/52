@@ -29,18 +29,22 @@ const Salary = ({ userPermissions, user }) => {
   const computeDefaultRange = useCallback(() => {
     const now = dayjs();
     const d = now.date();
-    if (d < 10) {
+    // Правила:
+    // - С 1 по 10 число включительно: показываем с 25 прошлого месяца по 9 тек. месяца
+    // - С 11 по 25 число включительно: показываем с 10 по 24 тек. месяца
+    // - С 26 по конец месяца: показываем с 25 тек. месяца по 9 следующего месяца
+    if (d <= 10) {
       const start = now.subtract(1, 'month').date(25);
-      const end = now.date(10);
+      const end = now.date(9);
       return [start, end];
     }
-    if (d >= 25) {
+    if (d >= 26) {
       const start = now.date(25);
-      const end = now.add(1, 'month').date(10);
+      const end = now.add(1, 'month').date(9);
       return [start, end];
     }
     const start = now.date(10);
-    const end = now.date(25);
+    const end = now.date(24);
     return [start, end];
   }, []);
 
