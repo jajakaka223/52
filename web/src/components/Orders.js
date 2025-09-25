@@ -986,30 +986,50 @@ const Orders = ({ theme, userPermissions, user }) => {
         footer={null}
         destroyOnClose
       >
-        <Select
-          placeholder="Выберите статус"
-          style={{ width: '100%' }}
-          onChange={handleChangeStatus}
-          key={statusModal.orderId || 'status'}
-        >
-          {isDriver ? (
-            <>
-              <Option value="in_progress">В пути</Option>
-              <Option value="unloaded">Разгрузился</Option>
-            </>
-          ) : (
-            <>
-              <Option value="new">Новая</Option>
-              <Option value="assigned">Назначена</Option>
-              <Option value="in_progress">В пути</Option>
-              <Option value="unloaded">Разгрузился</Option>
-              <Option value="awaiting_payment">Ожидаем оплаты</Option>
-              <Option value="send_originals">Отправить оригиналы</Option>
-              <Option value="completed">Выполнена</Option>
-              <Option value="cancelled">Отменена</Option>
-            </>
-          )}
-        </Select>
+        {(() => {
+          const currentOrder = orders.find(o => o.id === statusModal.orderId);
+          const isCompleted = currentOrder && currentOrder.status === 'completed';
+          
+          if (isCompleted) {
+            return (
+              <div style={{ textAlign: 'center', padding: '20px' }}>
+                <p style={{ color: '#ff4d4f', fontSize: '16px', marginBottom: '16px' }}>
+                  Статус "Выполнена". Изменение запрещено.
+                </p>
+                <Button onClick={() => setStatusModal({ open: false, orderId: null })}>
+                  Закрыть
+                </Button>
+              </div>
+            );
+          }
+          
+          return (
+            <Select
+              placeholder="Выберите статус"
+              style={{ width: '100%' }}
+              onChange={handleChangeStatus}
+              key={statusModal.orderId || 'status'}
+            >
+              {isDriver ? (
+                <>
+                  <Option value="in_progress">В пути</Option>
+                  <Option value="unloaded">Разгрузился</Option>
+                </>
+              ) : (
+                <>
+                  <Option value="new">Новая</Option>
+                  <Option value="assigned">Назначена</Option>
+                  <Option value="in_progress">В пути</Option>
+                  <Option value="unloaded">Разгрузился</Option>
+                  <Option value="awaiting_payment">Ожидаем оплаты</Option>
+                  <Option value="send_originals">Отправить оригиналы</Option>
+                  <Option value="completed">Выполнена</Option>
+                  <Option value="cancelled">Отменена</Option>
+                </>
+              )}
+            </Select>
+          );
+        })()}
       </Modal>
     </div>
   );
