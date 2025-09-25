@@ -303,8 +303,11 @@ const Orders = ({ theme, userPermissions, user }) => {
     const lines = String(order.direction || '').split('\n');
     const first = lines[0] || '';
     const [from, to] = first.split(' → ');
-    const loadLine = lines.find(l => l.startsWith('Погрузка:')) || '';
-    const unloadLine = lines.find(l => l.startsWith('Разгрузка:')) || '';
+    
+    // Парсим множественные адреса загрузки и разгрузки
+    const loadLines = lines.filter(l => l.startsWith('Погрузка:'));
+    const unloadLines = lines.filter(l => l.startsWith('Разгрузка:'));
+    
     const extractPart = (line) => {
       const idx = line.indexOf(':');
       return idx >= 0 ? line.slice(idx + 1).trim() : line;
@@ -317,11 +320,11 @@ const Orders = ({ theme, userPermissions, user }) => {
       const phone = inside.split(',')[1]?.trim() || '';
       return { address, company, phone };
     };
+    
     const commentLine = lines.find(l => l.startsWith('Комментарий:')) || '';
     const commentIdx = commentLine.indexOf(':');
     const comment = commentIdx >= 0 ? commentLine.slice(commentIdx + 1).trim() : '';
-    const loadParsed = splitCompanyPhone(extractPart(loadLine));
-    const unloadParsed = splitCompanyPhone(extractPart(unloadLine));
+    
     const escapeReg = (s) => String(s || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const stripCityPrefix = (addr, city) => {
       let result = String(addr || '').trim();
@@ -330,16 +333,33 @@ const Orders = ({ theme, userPermissions, user }) => {
       result = result.replace(re, '').trim();
       return result;
     };
+    
+    // Парсим адреса загрузки
+    const loads = loadLines.map(line => {
+      const parsed = splitCompanyPhone(extractPart(line));
+      return {
+        address: stripCityPrefix(parsed.address, from),
+        company: parsed.company || '',
+        phone: parsed.phone || ''
+      };
+    });
+    
+    // Парсим адреса разгрузки
+    const unloads = unloadLines.map(line => {
+      const parsed = splitCompanyPhone(extractPart(line));
+      return {
+        address: stripCityPrefix(parsed.address, to),
+        company: parsed.company || '',
+        phone: parsed.phone || ''
+      };
+    });
+    
     return {
       date: order.date ? dayjs(order.date) : null,
       from: from || '',
       to: to || '',
-      loadAddress: stripCityPrefix(loadParsed.address, from),
-      loadCompany: loadParsed.company || '',
-      loadPhone: loadParsed.phone || '',
-      unloadAddress: stripCityPrefix(unloadParsed.address, to),
-      unloadCompany: unloadParsed.company || '',
-      unloadPhone: unloadParsed.phone || '',
+      loads: loads.length > 0 ? loads : [{ address: '', company: '', phone: '' }],
+      unloads: unloads.length > 0 ? unloads : [{ address: '', company: '', phone: '' }],
       comment,
       company: order.company || '',
       clientName: order.client_name || '',
@@ -690,8 +710,11 @@ const Orders = ({ theme, userPermissions, user }) => {
               const lines = String(details.direction || '').split('\n');
               const first = lines[0] || '';
               const [from, to] = first.split(' → ');
-              const loadLine = lines.find(l => l.startsWith('Погрузка:')) || '';
-              const unloadLine = lines.find(l => l.startsWith('Разгрузка:')) || '';
+              
+              // Парсим множественные адреса загрузки и разгрузки
+              const loadLines = lines.filter(l => l.startsWith('Погрузка:'));
+              const unloadLines = lines.filter(l => l.startsWith('Разгрузка:'));
+              
               const extractPart = (line) => {
                 const idx = line.indexOf(':');
                 return idx >= 0 ? line.slice(idx + 1).trim() : line;
@@ -704,24 +727,50 @@ const Orders = ({ theme, userPermissions, user }) => {
                 const phone = inside.split(',')[1]?.trim() || '';
                 return { address, company, phone };
               };
-              const loadParsed = splitCompanyPhone(extractPart(loadLine));
-              const unloadParsed = splitCompanyPhone(extractPart(unloadLine));
+              
+              const loadParsed = loadLines.map(line => splitCompanyPhone(extractPart(line)));
+              const unloadParsed = unloadLines.map(line => splitCompanyPhone(extractPart(line)));
+              
               const openMap = (addr) => window.open(`https://yandex.ru/maps/?text=${encodeURIComponent(addr)}`, '_blank');
               const copy = (text, msg) => { navigator.clipboard.writeText(String(text || '')); message.success(msg); };
+              
               return (
                 <>
                   <p><b>Дата:</b> {details.date ? dayjs(details.date).format('DD.MM.YYYY') : '—'}</p>
                   <p><b>Направление:</b> {(from || to) ? `${from || '—'} → ${to || '—'}` : '—'}</p>
-                  <p><b>Адрес загрузки:</b> {loadParsed.address ? <button onClick={() => openMap(loadParsed.address)} style={{ padding: 0, border: 'none', background: 'none', color: '#1677ff', cursor: 'pointer' }}>{loadParsed.address}</button> : '—'}</p>
-                  <p><b>Компания на загрузке:</b> {loadParsed.company || '—'}</p>
-                  <p><b>Телефон на загрузке:</b> {loadParsed.phone ? <button onClick={() => copy(loadParsed.phone, 'Номер скопирован')} style={{ padding: 0, border: 'none', background: 'none', color: '#1677ff', cursor: 'pointer' }}>{loadParsed.phone}</button> : 'нет'}</p>
-                  <p><b>Адрес разгрузки:</b> {unloadParsed.address ? <button onClick={() => openMap(unloadParsed.address)} style={{ padding: 0, border: 'none', background: 'none', color: '#1677ff', cursor: 'pointer' }}>{unloadParsed.address}</button> : '—'}</p>
-                  <p><b>Компания на разгрузке:</b> {unloadParsed.company || '—'}</p>
-                  <p><b>Телефон на разгрузке:</b> {unloadParsed.phone ? <button onClick={() => copy(unloadParsed.phone, 'Номер скопирован')} style={{ padding: 0, border: 'none', background: 'none', color: '#1677ff', cursor: 'pointer' }}>{unloadParsed.phone}</button> : 'нет'}</p>
+                  
+                  {/* Адреса загрузки */}
+                  {loadParsed.length > 0 && (
+                    <>
+                      <p><b>Адреса загрузки:</b></p>
+                      {loadParsed.map((load, idx) => (
+                        <div key={idx} style={{ marginLeft: 16, marginBottom: 8 }}>
+                          <p><b>Адрес {idx + 1}:</b> {load.address ? <button onClick={() => openMap(load.address)} style={{ padding: 0, border: 'none', background: 'none', color: '#1677ff', cursor: 'pointer' }}>{load.address}</button> : '—'}</p>
+                          <p><b>Компания:</b> {load.company || '—'}</p>
+                          <p><b>Телефон:</b> {load.phone ? <button onClick={() => copy(load.phone, 'Номер скопирован')} style={{ padding: 0, border: 'none', background: 'none', color: '#1677ff', cursor: 'pointer' }}>{load.phone}</button> : 'нет'}</p>
+                        </div>
+                      ))}
+                    </>
+                  )}
+                  
+                  {/* Адреса разгрузки */}
+                  {unloadParsed.length > 0 && (
+                    <>
+                      <p><b>Адреса разгрузки:</b></p>
+                      {unloadParsed.map((unload, idx) => (
+                        <div key={idx} style={{ marginLeft: 16, marginBottom: 8 }}>
+                          <p><b>Адрес {idx + 1}:</b> {unload.address ? <button onClick={() => openMap(unload.address)} style={{ padding: 0, border: 'none', background: 'none', color: '#1677ff', cursor: 'pointer' }}>{unload.address}</button> : '—'}</p>
+                          <p><b>Компания:</b> {unload.company || '—'}</p>
+                          <p><b>Телефон:</b> {unload.phone ? <button onClick={() => copy(unload.phone, 'Номер скопирован')} style={{ padding: 0, border: 'none', background: 'none', color: '#1677ff', cursor: 'pointer' }}>{unload.phone}</button> : 'нет'}</p>
+                        </div>
+                      ))}
+                    </>
+                  )}
+                  
                   {!isDriver && (
                     <p><b>Email:</b> {details.email ? <button onClick={() => copy(details.email, 'Email скопирован')} style={{ padding: 0, border: 'none', background: 'none', color: '#1677ff', cursor: 'pointer' }}>{details.email}</button> : '—'}</p>
                   )}
-                  {/* Компания по заявке / Имя / Телефон / Email скрыты по требованию */}
+                  
                   <p><b>Комментарий:</b> {(() => {
                     const commentLine = lines.find(l => l.startsWith('Комментарий:')) || '';
                     const idx = commentLine.indexOf(':');
@@ -758,19 +807,33 @@ const Orders = ({ theme, userPermissions, user }) => {
           try {
             const from = vals.from || '';
             const to = vals.to || '';
-            const loadAddress = vals.loadAddress || '';
-            const loadCompany = vals.loadCompany || '';
-            const loadPhone = vals.loadPhone || 'нет';
-            const unloadAddress = vals.unloadAddress || '';
-            const unloadCompany = vals.unloadCompany || '';
-            const unloadPhone = vals.unloadPhone || 'нет';
             const comment = vals.comment || '';
 
             const startsWithCity = (city, addr) => city && new RegExp(`^${escape(city)}\\s*,`, 'i').test(String(addr));
             function escape(s){ return String(s||'').replace(/[.*+?^${}()|[\]\\]/g,'\\$&'); }
-            const loadFull = startsWithCity(from, loadAddress) ? loadAddress : `${from ? from + ', ' : ''}${loadAddress}`.trim();
-            const unloadFull = startsWithCity(to, unloadAddress) ? unloadAddress : `${to ? to + ', ' : ''}${unloadAddress}`.trim();
-            const directionDetails = `${from} → ${to}\nПогрузка: ${loadFull} (${loadCompany}, ${loadPhone})\nРазгрузка: ${unloadFull} (${unloadCompany}, ${unloadPhone})${comment ? `\nКомментарий: ${comment}` : ''}`;
+            
+            // Формируем строку направления с множественными адресами
+            let directionDetails = `${from} → ${to}\n`;
+            
+            // Добавляем адреса загрузки
+            if (vals.loads && vals.loads.length > 0) {
+              vals.loads.forEach((load, idx) => {
+                const loadFull = startsWithCity(from, load.address) ? load.address : `${from ? from + ', ' : ''}${load.address}`.trim();
+                directionDetails += `Погрузка: ${loadFull} (${load.company || ''}, ${load.phone || 'нет'})\n`;
+              });
+            }
+            
+            // Добавляем адреса разгрузки
+            if (vals.unloads && vals.unloads.length > 0) {
+              vals.unloads.forEach((unload, idx) => {
+                const unloadFull = startsWithCity(to, unload.address) ? unload.address : `${to ? to + ', ' : ''}${unload.address}`.trim();
+                directionDetails += `Разгрузка: ${unloadFull} (${unload.company || ''}, ${unload.phone || 'нет'})\n`;
+              });
+            }
+            
+            if (comment) {
+              directionDetails += `Комментарий: ${comment}`;
+            }
 
             const payload = {
               date: vals.date ? dayjs(vals.date).format('YYYY-MM-DD') : null,
@@ -783,7 +846,7 @@ const Orders = ({ theme, userPermissions, user }) => {
               weight: vals.weight ?? null,
               driver_id: vals.driverId || null
             };
-            // Расстояние редактируется вручную пользователем
+            
             await api.put(`/api/orders/${details.id}`, payload, { headers });
             message.success('Заявка обновлена');
             setEditVisible(false);
@@ -804,31 +867,71 @@ const Orders = ({ theme, userPermissions, user }) => {
             <Form.Item name="to" label="Куда" rules={[{ required: true, message: 'Укажите точку назначения' }]}>
               <Input style={{ width: 200 }} />
             </Form.Item>
-            <Form.Item name="loadAddress" label="Адрес загрузки" rules={[{ required: true, message: 'Укажите адрес загрузки' }]}>
-              <Input style={{ width: 240 }} />
-            </Form.Item>
-            <Form.Item name="loadCompany" label="Компания на загрузке" rules={[{ required: true, message: 'Укажите компанию на загрузке' }]}>
-              <Input style={{ width: 220 }} />
-            </Form.Item>
-            <Form.Item name="loadPhone" label="Телефон загрузки">
-              <Input style={{ width: 160 }} />
-            </Form.Item>
-            <Form.Item name="unloadAddress" label="Адрес разгрузки" rules={[{ required: true, message: 'Укажите адрес разгрузки' }]}>
-              <Input style={{ width: 240 }} />
-            </Form.Item>
-            <Form.Item name="unloadCompany" label="Компания на разгрузке" rules={[{ required: true, message: 'Укажите компанию на разгрузке' }]}>
-              <Input style={{ width: 220 }} />
-            </Form.Item>
-            <Form.Item name="unloadPhone" label="Телефон разгрузки">
-              <Input style={{ width: 160 }} />
-            </Form.Item>
+          </Space>
+          
+          <Divider orientation="left" orientationMargin={0}><span style={{ color: theme === 'dark' ? '#fff' : undefined }}>Погрузка</span></Divider>
+          <Space direction="vertical" style={{ width: '100%' }}>
+            <Form.List name="loads" initialValue={[{ address: '', company: '', phone: '' }]}>
+              {(fields, { add, remove }) => (
+                <>
+                  {fields.map((field, idx) => (
+                    <Space key={field.key} size={16} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: 8 }}>
+                      <Form.Item {...field} name={[field.name, 'address']} fieldKey={[field.fieldKey, 'address']} label={idx === 0 ? 'Адрес загрузки' : `Адрес загрузки ${idx+1}` } rules={[{ required: true, message: 'Укажите адрес загрузки' }]}>
+                        <Input style={{ width: 240 }} />
+                      </Form.Item>
+                      <Form.Item {...field} name={[field.name, 'company']} fieldKey={[field.fieldKey, 'company']} label={idx === 0 ? 'Компания на загрузке' : `Компания на загрузке ${idx+1}` } rules={[{ required: true, message: 'Укажите компанию на загрузке' }]}>
+                        <Input style={{ width: 220 }} />
+                      </Form.Item>
+                      <Form.Item {...field} name={[field.name, 'phone']} fieldKey={[field.fieldKey, 'phone']} label={idx === 0 ? 'Телефон загрузки' : `Телефон загрузки ${idx+1}` } normalize={v => (v ? String(v).replace(/\D/g,'') : v)}>
+                        <Input style={{ width: 160 }} />
+                      </Form.Item>
+                      {fields.length > 1 && idx > 0 && (
+                        <Button danger onClick={() => remove(field.name)} style={{ marginLeft: 8, marginTop: 4 }}>Удалить</Button>
+                      )}
+                    </Space>
+                  ))}
+                  <Button onClick={() => add({ address: '', company: '', phone: '' })} style={{ marginTop: 8 }}>Добавить ещё один адрес загрузки</Button>
+                </>
+              )}
+            </Form.List>
+          </Space>
+          
+          <Divider orientation="left" orientationMargin={0}><span style={{ color: theme === 'dark' ? '#fff' : undefined }}>Разгрузка</span></Divider>
+          <Space direction="vertical" style={{ width: '100%' }}>
+            <Form.List name="unloads" initialValue={[{ address: '', company: '', phone: '' }]}>
+              {(fields, { add, remove }) => (
+                <>
+                  {fields.map((field, idx) => (
+                    <Space key={field.key} size={16} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: 8 }}>
+                      <Form.Item {...field} name={[field.name, 'address']} fieldKey={[field.fieldKey, 'address']} label={idx === 0 ? 'Адрес разгрузки' : `Адрес разгрузки ${idx+1}` } rules={[{ required: true, message: 'Укажите адрес разгрузки' }]}>
+                        <Input style={{ width: 240 }} />
+                      </Form.Item>
+                      <Form.Item {...field} name={[field.name, 'company']} fieldKey={[field.fieldKey, 'company']} label={idx === 0 ? 'Компания на разгрузке' : `Компания на разгрузке ${idx+1}` } rules={[{ required: true, message: 'Укажите компанию на разгрузке' }]}>
+                        <Input style={{ width: 220 }} />
+                      </Form.Item>
+                      <Form.Item {...field} name={[field.name, 'phone']} fieldKey={[field.fieldKey, 'phone']} label={idx === 0 ? 'Телефон разгрузки' : `Телефон разгрузки ${idx+1}` } normalize={v => (v ? String(v).replace(/\D/g,'') : v)}>
+                        <Input style={{ width: 160 }} />
+                      </Form.Item>
+                      {fields.length > 1 && idx > 0 && (
+                        <Button danger onClick={() => remove(field.name)} style={{ marginLeft: 8, marginTop: 4 }}>Удалить</Button>
+                      )}
+                    </Space>
+                  ))}
+                  <Button onClick={() => add({ address: '', company: '', phone: '' })} style={{ marginTop: 8 }}>Добавить ещё один адрес разгрузки</Button>
+                </>
+              )}
+            </Form.List>
+          </Space>
+          
+          <Divider orientation="left" orientationMargin={0}><span style={{ color: theme === 'dark' ? '#fff' : undefined }}>Данные по заявке</span></Divider>
+          <Space size={16} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end' }}>
             <Form.Item name="company" label="Компания по заявке" rules={[{ required: true, message: 'Укажите компанию по заявке' }]}>
               <Input style={{ width: 200 }} />
             </Form.Item>
             <Form.Item name="clientName" label="Имя" rules={[{ required: true, message: 'Укажите имя' }]}> 
               <Input style={{ width: 160 }} />
             </Form.Item>
-            <Form.Item name="phone" label="Телефон">
+            <Form.Item name="phone" label="Телефон" normalize={v => (v ? String(v).replace(/\D/g,'') : v)}>
               <Input style={{ width: 160 }} />
             </Form.Item>
             <Form.Item name="email" label="Email">

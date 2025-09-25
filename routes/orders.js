@@ -408,6 +408,21 @@ router.patch('/:id/status', async (req, res) => {
       if (req.user.role === 'driver') {
         const admins = await pool.query("SELECT id FROM users WHERE role = 'admin' AND is_active = true");
         const adminIds = admins.rows.map(r => r.id);
+        
+        // Маппинг статусов на русский язык
+        const statusToRu = {
+          'new': 'Новая',
+          'assigned': 'Назначена', 
+          'in_progress': 'В пути',
+          'unloaded': 'Разгрузился',
+          'awaiting_payment': 'Ожидаем оплаты',
+          'send_originals': 'Отправить оригиналы',
+          'completed': 'Выполнена',
+          'cancelled': 'Отменена'
+        };
+        
+        const statusRu = statusToRu[status] || status;
+        
         for (const adminId of adminIds) {
           await fetch(`https://web-production-7cfec.up.railway.app/api/notifications/send`, {
             method: 'POST',
@@ -417,7 +432,7 @@ router.patch('/:id/status', async (req, res) => {
             },
             body: JSON.stringify({
               title: 'Статус заявки изменён',
-              body: `Водитель изменил статус заявки #${id} на ${status}`,
+              body: `Водитель изменил статус заявки #${id} на ${statusRu}`,
               type: 'web_user',
               recipientId: adminId
             })
